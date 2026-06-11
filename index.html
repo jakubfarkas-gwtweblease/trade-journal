@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
 <title>Trade Journal</title>
-<meta name="theme-color" content="#241F2C" />
+<meta name="theme-color" content="#17131D" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Journal" />
@@ -14,26 +14,31 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { background:#1B1722; height:100%; overflow:hidden; }
+  html, body { background:#100D14; height:100%; overflow:hidden; }
   body { overscroll-behavior-y: none; position: fixed; inset: 0; width: 100%; }
   #root { position: absolute; inset: 0; overflow: hidden; }
   .scrollpane { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  @keyframes slideUp { from { transform: translateY(36px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes riseIn { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes slideUp { from { transform: translateY(32px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  @keyframes pop { 0% { transform: scale(0.85); } 60% { transform: scale(1.07); } 100% { transform: scale(1); } }
-  @keyframes glowPulse { 0%,100% { box-shadow: 0 10px 32px rgba(255,235,59,0.28), inset 0 1px 0 rgba(255,255,255,0.5); } 50% { box-shadow: 0 12px 44px rgba(255,235,59,0.46), inset 0 1px 0 rgba(255,255,255,0.5); } }
-  .slide-anim { animation: slideUp 280ms cubic-bezier(.2,.8,.2,1); }
+  @keyframes pop { 0% { transform: scale(0.9); } 60% { transform: scale(1.05); } 100% { transform: scale(1); } }
+  @keyframes barGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .rise { opacity: 0; animation: riseIn 520ms cubic-bezier(.2,.8,.2,1) forwards; animation-delay: calc(var(--i, 0) * 70ms); }
+  .slide-anim { animation: slideUp 260ms cubic-bezier(.2,.8,.2,1); }
   .fade-anim { animation: fadeIn 220ms ease; }
-  .pop-anim { animation: pop 240ms ease; }
-  .fab-glow { animation: glowPulse 3.2s ease-in-out infinite; }
-  .jchip { transition: transform 120ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease; }
+  .pop-anim { animation: pop 220ms ease; }
+  .bar-grow { transform-origin: left center; animation: barGrow 800ms cubic-bezier(.2,.8,.2,1) forwards; animation-delay: calc(var(--i, 0) * 90ms + 200ms); transform: scaleX(0); }
+  .jchip { transition: transform 120ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease, border-color 150ms ease; }
   .jchip:active { transform: scale(0.94); }
-  .jpress { transition: transform 120ms ease, opacity 150ms ease; }
+  .jpress { transition: transform 110ms ease, opacity 140ms ease; }
   .jpress:active { transform: scale(0.97); }
-  .jfocus:focus { border-color: rgba(104,116,232,0.6) !important; box-shadow: 0 0 0 3px rgba(104,116,232,0.18); }
+  .jfocus:focus { border-color: rgba(104,116,232,0.65) !important; box-shadow: 0 0 0 3px rgba(104,116,232,0.16); }
   .hscroll { overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling: touch; scrollbar-width:none; }
   .hscroll::-webkit-scrollbar { display:none; }
-  @media (prefers-reduced-motion: reduce) { .jchip, .jpress { transition: none !important; } .slide-anim, .fade-anim, .pop-anim, .fab-glow { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) {
+    .jchip, .jpress { transition: none !important; }
+    .rise, .slide-anim, .fade-anim, .pop-anim, .bar-grow { animation: none !important; opacity: 1 !important; transform: none !important; }
+  }
   input, textarea, button { font: inherit; }
   button { cursor:pointer; border:none; background:none; }
   input[type="date"] {
@@ -50,27 +55,28 @@
 <script type="text/babel" data-presets="env,react">
 const { useState, useEffect, useMemo, useRef } = React;
 
-/* ---------- palette ---------- */
+/* ---------- palette · deeper, serious ---------- */
 const P = {
-  bg: "#241F2C", bgDeep: "#1B1722",
-  text: "#DBDBDB",
-  dim: "rgba(219,219,219,0.62)",
-  faint: "rgba(219,219,219,0.38)",
+  bg: "#17131D", bgDeep: "#100D14",
+  text: "#E2E2E2",
+  dim: "rgba(226,226,226,0.64)",
+  faint: "rgba(226,226,226,0.38)",
   slate: "#4B5062",
   win: "#6874E8", loss: "#FC4422", gold: "#FFEB3B",
-  winTint: "rgba(104,116,232,0.10)", lossTint: "rgba(252,68,34,0.08)",
-  glassBg: "rgba(219,219,219,0.05)", glassHi: "rgba(219,219,219,0.085)",
-  border: "rgba(219,219,219,0.10)",
+  winTint: "rgba(104,116,232,0.10)", lossTint: "rgba(252,68,34,0.075)",
+  goldTint: "rgba(255,235,59,0.05)", slateTint: "rgba(75,80,98,0.16)",
+  glassBg: "rgba(226,226,226,0.04)", glassHi: "rgba(226,226,226,0.07)",
+  border: "rgba(226,226,226,0.09)",
+  track: "rgba(226,226,226,0.07)",
 };
-const GRAD_PRIMARY = "linear-gradient(135deg, #6874E8 0%, #FC4422 130%)";
-const GRAD_FLAME = "linear-gradient(135deg, #FFEB3B 0%, #FC4422 100%)";
-const GRAD_TITLE = "linear-gradient(100deg, #DBDBDB 0%, #6874E8 55%, #FC4422 110%)";
+const GRAD_PRIMARY = "linear-gradient(135deg, #6874E8 0%, #D8431F 140%)";
+const GRAD_FLAME = "linear-gradient(135deg, #FFEB3B 0%, #FC4422 110%)";
 const MONO = "ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace";
 const SANS = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif";
 const glass = (extra = {}) => ({
   background: P.glassBg,
-  backdropFilter: "blur(22px) saturate(150%)",
-  WebkitBackdropFilter: "blur(22px) saturate(150%)",
+  backdropFilter: "blur(20px) saturate(140%)",
+  WebkitBackdropFilter: "blur(20px) saturate(140%)",
   border: `1px solid ${P.border}`,
   ...extra,
 });
@@ -87,7 +93,7 @@ const CONFLUENCES = [
   "Flip chart same outlook",
 ];
 const MIN_CONFLUENCES = 3;
-const MIN_PRESTATE = 4; // flag at <= 3
+const MIN_PRESTATE = 4;
 const PAIRS = ["XAUUSD", "EURUSD", "GBPUSD", "GBPAUD", "ETH", "BTC"];
 const SESSIONS = ["PRE-LONDON", "LONDON", "PRE-NEW YORK", "NEW YORK", "PRE-ASIA", "ASIA"];
 const TRENDS = ["With", "Against", "No clear trend"];
@@ -95,10 +101,12 @@ const PHYSICAL = ["Yes", "Partly", "No"];
 const SLEEP = ["<5", "5", "6", "7", "8+"];
 const FELT = ["Calm & sharp", "Pleasant", "Neutral", "Tense", "Urgency", "Fearful"];
 const CLOSED = ["SL hit", "TP hit", "PA reversal read", "Manual profit", "Moved SL", "News"];
-const STORAGE_KEY = "trade-journal-v1";
+const STORAGE_KEY = "trade-journal-v1"; // unchanged — data carries over
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const pad2 = (n) => String(n).padStart(2, "0");
+const localISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const todayISO = () => localISO(new Date());
 const shortDate = (iso) => { const [, m, d] = iso.split("-"); return `${parseInt(d)}.${parseInt(m)}`; };
 const fmtMoney = (n) => { const v = parseFloat(n); return isNaN(v) ? "—" : v.toLocaleString("sk-SK"); };
 
@@ -120,13 +128,18 @@ const verdictOf = (t) => {
   return { v: "A++", why: null };
 };
 
-const isFlagged = (t, acc) => {
-  if (!t.executed) return false;
-  if (t.rulesFollowed === false) return true;
-  if (t.preState !== null && t.preState <= 3) return true;
-  if (acc && parseFloat(t.risk) > parseFloat(acc.maxRisk)) return true;
-  return false;
+/* strict flag logic + visible reasons */
+const flagReasons = (t, acc) => {
+  if (!t.executed) return [];
+  const r = [];
+  if (t.rulesFollowed === false) r.push("rules broken");
+  const ps = parseFloat(t.preState);
+  if (!isNaN(ps) && ps <= 3) r.push("state ≤ 3");
+  const rk = parseFloat(t.risk), m = acc ? parseFloat(acc.maxRisk) : NaN;
+  if (!isNaN(rk) && !isNaN(m) && rk > m + 0.001) r.push("risk over max");
+  return r;
 };
+const isFlagged = (t, acc) => flagReasons(t, acc).length > 0;
 
 /* ---------- storage ---------- */
 const loadData = () => {
@@ -164,11 +177,10 @@ const parseSheetDate = (s) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(c)) return c;
   const d = new Date(c);
   if (isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
 };
 const num = (s) => (s || "").trim().replace(",", ".");
 
-/* Imports both the old spreadsheet format (23 cols) and this app's own export (25 cols, has "Executed" header) */
 const importRows = (rows) => {
   if (!rows.length) return [];
   const header = rows[0].map((h) => (h || "").toLowerCase());
@@ -243,25 +255,48 @@ const accountStats = (acc) => {
     flags: acc.trades.filter((t) => isFlagged(t, acc)).length,
   };
 };
+const cumulativeOf = (trades) => {
+  const closed = trades.filter((t) => t.executed && (t.outcome === "Win" || t.outcome === "Loss"))
+    .sort((a, b) => (a.date > b.date ? 1 : -1));
+  let score = 0;
+  return closed.map((t) => { score += t.outcome === "Win" ? 1 : -1; return { d: shortDate(t.date), score }; });
+};
+
+/* count-up for numbers */
+const useCountUp = (target, dur = 800) => {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (target === null || target === undefined || isNaN(target)) { setV(0); return; }
+    let raf, start;
+    const step = (ts) => {
+      if (!start) start = ts;
+      const p = Math.min(1, (ts - start) / dur);
+      setV(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return target === null || target === undefined ? null : v;
+};
 
 /* ---------- primitives ---------- */
 const Chip = ({ active, onClick, children, tone = "win", small }) => {
   const bg = tone === "loss" ? P.loss : tone === "gold" ? P.gold : P.win;
   return (
-    <button onClick={onClick}
-      className="jchip"
+    <button onClick={onClick} className="jchip"
       style={{
         display: "inline-block", borderRadius: 999, marginRight: 8, marginBottom: 8,
         padding: small ? "6px 12px" : "8px 16px", fontSize: small ? 12 : 14,
-        fontFamily: SANS, fontWeight: active ? 650 : 420,
+        fontFamily: SANS, fontWeight: active ? 650 : 430,
         color: active ? (tone === "gold" ? "#241F2C" : "#FFFFFF") : P.dim,
         background: active ? bg : P.glassBg,
-        backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
+        backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
         border: `1px solid ${active ? "transparent" : P.border}`,
         boxShadow: active
-          ? tone === "gold" ? "0 4px 18px rgba(255,235,59,0.30)"
-          : tone === "loss" ? "0 4px 18px rgba(252,68,34,0.30)"
-          : "0 4px 18px rgba(104,116,232,0.35)" : "none",
+          ? tone === "gold" ? "0 3px 14px rgba(255,235,59,0.25)"
+          : tone === "loss" ? "0 3px 14px rgba(252,68,34,0.25)"
+          : "0 3px 14px rgba(104,116,232,0.28)" : "none",
         whiteSpace: "nowrap",
       }}>
       {children}
@@ -278,12 +313,12 @@ const Field = ({ label, children }) => (
 
 const Input = ({ mono, style, ...props }) => (
   <input {...props} className="jfocus"
-    style={{ ...glass(), width: "100%", padding: "12px 16px", borderRadius: 16, fontSize: 16, color: P.text, fontFamily: mono ? MONO : SANS, outline: "none", ...style }} />
+    style={{ ...glass(), width: "100%", padding: "12px 16px", borderRadius: 14, fontSize: 16, color: P.text, fontFamily: mono ? MONO : SANS, outline: "none", ...style }} />
 );
 
 const TextArea = (props) => (
   <textarea {...props} className="jfocus"
-    style={{ ...glass(), width: "100%", padding: "12px 16px", borderRadius: 16, fontSize: 16, color: P.text, fontFamily: SANS, outline: "none", resize: "vertical" }} />
+    style={{ ...glass(), width: "100%", padding: "12px 16px", borderRadius: 14, fontSize: 16, color: P.text, fontFamily: SANS, outline: "none", resize: "vertical" }} />
 );
 
 const ScaleChips = ({ value, onChange }) => (
@@ -301,38 +336,126 @@ const ChipsPlus = ({ options, value, onChange, tone = "win", placeholder = "or t
       ))}
       <input value={isCustom ? value : ""} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
         className="jfocus"
-        style={{ ...glass(), display: "inline-block", padding: "6px 12px", borderRadius: 999, fontSize: 13, marginBottom: 8, color: P.text, fontFamily: SANS, outline: "none", width: 120 }} />
+        style={{ ...glass(), display: "inline-block", padding: "6px 12px", borderRadius: 999, fontSize: 13, marginBottom: 8, color: P.text, fontFamily: SANS, outline: "none", width: 116 }} />
     </div>
   );
 };
 
 const Background = () => (
-  <div style={{ position: "fixed", inset: 0, zIndex: -1, background: `linear-gradient(165deg, ${P.bg} 0%, ${P.bgDeep} 60%, #161219 100%)` }}>
-    <div style={{ position: "absolute", borderRadius: "50%", width: 440, height: 440, top: -140, right: -150, background: "radial-gradient(circle, rgba(104,116,232,0.20), transparent 65%)" }} />
-    <div style={{ position: "absolute", borderRadius: "50%", width: 360, height: 360, bottom: -80, left: -130, background: "radial-gradient(circle, rgba(252,68,34,0.10), transparent 65%)" }} />
+  <div style={{ position: "fixed", inset: 0, zIndex: -1, background: `linear-gradient(170deg, ${P.bg} 0%, ${P.bgDeep} 70%, #0C0A10 100%)` }}>
+    <div style={{ position: "absolute", borderRadius: "50%", width: 460, height: 460, top: -180, right: -170, background: "radial-gradient(circle, rgba(104,116,232,0.13), transparent 65%)" }} />
+    <div style={{ position: "absolute", borderRadius: "50%", width: 340, height: 340, bottom: -120, left: -140, background: "radial-gradient(circle, rgba(252,68,34,0.06), transparent 65%)" }} />
   </div>
 );
 
-const EdgeBar = ({ label, wr, n, color }) => (
-  <div style={{ marginBottom: 10 }}>
-    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4, fontFamily: SANS }}>
+/* ---------- rings ---------- */
+const Ring = ({ size = 64, stroke = 5, pct, color, animate = true, glow = true, children }) => {
+  const r = (size - stroke) / 2, C = 2 * Math.PI * r;
+  const [on, setOn] = useState(!animate);
+  useEffect(() => {
+    if (!animate) return;
+    const t = setTimeout(() => setOn(true), 60);
+    return () => clearTimeout(t);
+  }, [animate]);
+  const p = Math.max(0, Math.min(100, pct ?? 0));
+  const off = C * (1 - (on ? p : 0) / 100);
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)", display: "block" }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={P.track} strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={C} strokeDashoffset={off}
+          style={{ transition: animate ? "stroke-dashoffset 900ms cubic-bezier(.2,.8,.2,1)" : "none",
+            filter: glow ? `drop-shadow(0 0 5px ${color}55)` : "none" }} />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+/* dual-ring edge hero */
+const DualRing = ({ size = 150, hiWR, loWR, centerWR }) => {
+  const cw = useCountUp(centerWR);
+  const mk = (r, pct, color, stroke) => {
+    const C = 2 * Math.PI * r;
+    return { C, off: C * (1 - Math.max(0, Math.min(100, pct ?? 0)) / 100), r, color, stroke };
+  };
+  const [on, setOn] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setOn(true), 80); return () => clearTimeout(t); }, []);
+  const outer = mk(size/2 - 4, hiWR, P.win, 6);
+  const inner = mk(size/2 - 16, loWR, P.loss, 6);
+  const arc = (a) => (
+    <React.Fragment>
+      <circle cx={size/2} cy={size/2} r={a.r} fill="none" stroke={P.track} strokeWidth={a.stroke} />
+      <circle cx={size/2} cy={size/2} r={a.r} fill="none" stroke={a.color} strokeWidth={a.stroke} strokeLinecap="round"
+        strokeDasharray={a.C} strokeDashoffset={on ? a.off : a.C}
+        style={{ transition: "stroke-dashoffset 1000ms cubic-bezier(.2,.8,.2,1)", filter: `drop-shadow(0 0 5px ${a.color}50)` }} />
+    </React.Fragment>
+  );
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)", display: "block" }}>
+        {arc(outer)}{arc(inner)}
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ fontSize: 30, fontWeight: 200, color: P.text, fontFamily: SANS, letterSpacing: "-0.03em", lineHeight: 1 }}>
+          {centerWR === null ? "—" : <span>{cw}<span style={{ fontSize: 14, color: P.dim }}>%</span></span>}
+        </div>
+        <div style={{ fontSize: 8.5, letterSpacing: "0.24em", textTransform: "uppercase", color: P.faint, marginTop: 4, fontFamily: SANS }}>win rate</div>
+      </div>
+    </div>
+  );
+};
+
+/* small pre-state ring for rows */
+const PreRing = ({ ps }) => {
+  const has = ps !== null && ps !== undefined && !isNaN(parseFloat(ps));
+  const v = has ? parseFloat(ps) : 0;
+  const color = !has ? P.slate : v >= MIN_PRESTATE ? P.win : P.loss;
+  return (
+    <Ring size={26} stroke={2.5} pct={(v / 5) * 100} color={color} animate={false} glow={false}>
+      <span style={{ fontSize: 9.5, fontWeight: 700, color: has ? color : P.faint, fontFamily: MONO }}>{has ? (v % 1 ? v : Math.round(v)) : "·"}</span>
+    </Ring>
+  );
+};
+
+/* mini sparkline for account cards */
+const Spark = ({ points, width = 96, height = 30 }) => {
+  if (points.length < 2) return <div style={{ width, height }} />;
+  const pad = 3;
+  const ys = points.map((p) => p.score);
+  const minY = Math.min(0, ...ys), maxY = Math.max(0, ...ys);
+  const span = maxY - minY || 1;
+  const X = (i) => pad + (i / (points.length - 1)) * (width - 2 * pad);
+  const Y = (v) => height - pad - ((v - minY) / span) * (height - 2 * pad);
+  const path = points.map((p, i) => `${X(i)},${Y(p.score)}`).join(" ");
+  const last = points[points.length - 1];
+  return (
+    <svg width={width} height={height} style={{ display: "block" }}>
+      <line x1={pad} x2={width-pad} y1={Y(0)} y2={Y(0)} stroke={P.border} strokeWidth="1" strokeDasharray="2 3" />
+      <polyline points={path} fill="none" stroke={last.score >= 0 ? P.win : P.loss} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round"
+        style={{ filter: `drop-shadow(0 0 4px ${(last.score >= 0 ? P.win : P.loss)}44)` }} />
+      <circle cx={X(points.length-1)} cy={Y(last.score)} r="2.6" fill={P.gold} />
+    </svg>
+  );
+};
+
+/* edge bar with grow animation */
+const EdgeBar = ({ label, wr, n, color, i = 0 }) => (
+  <div style={{ marginBottom: 11 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5, fontFamily: SANS }}>
       <span style={{ color: P.dim }}>{label}</span>
       <span style={{ color, fontFamily: MONO, fontWeight: 700 }}>{wr === null ? "—" : `${wr}%`}<span style={{ color: P.faint, fontWeight: 400 }}> · {n} tr</span></span>
     </div>
-    <div style={{ height: 8, borderRadius: 999, overflow: "hidden", background: "rgba(219,219,219,0.08)" }}>
-      <div style={{ height: "100%", borderRadius: 999, width: `${wr ?? 0}%`, background: color, transition: "width 500ms ease", boxShadow: `0 0 12px ${color}66` }} />
+    <div style={{ height: 7, borderRadius: 999, overflow: "hidden", background: P.track }}>
+      <div className="bar-grow" style={{ "--i": i, height: "100%", borderRadius: 999, width: `${wr ?? 0}%`, background: color, boxShadow: `0 0 10px ${color}55` }} />
     </div>
   </div>
 );
 
-/* ---------- charts (dependency-free) ---------- */
-const ChartCard = ({ title, children }) => (
-  <div style={{ ...glass(), borderRadius: 24, padding: "16px 14px", marginBottom: 16 }}>
-    <div style={{ fontSize: 11, textTransform: "uppercase", marginBottom: 12, color: P.faint, letterSpacing: "0.12em", fontFamily: SANS }}>{title}</div>
-    {children}
-  </div>
-);
-
+/* cumulative chart with gradient stroke */
 const CumulativeLine = ({ points }) => {
   if (points.length < 2) return <div style={{ color: P.faint, fontSize: 13, fontFamily: SANS }}>Need at least 2 closed trades.</div>;
   const W = 320, H = 120, pad = 8;
@@ -346,10 +469,16 @@ const CumulativeLine = ({ points }) => {
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
-        <line x1={pad} x2={W - pad} y1={Y(0)} y2={Y(0)} stroke="rgba(219,219,219,0.18)" strokeWidth="1" strokeDasharray="3 4" />
-        <polyline points={path} fill="none" stroke={P.win} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        <defs>
+          <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor={P.win} /><stop offset="1" stopColor={P.loss} />
+          </linearGradient>
+        </defs>
+        <line x1={pad} x2={W - pad} y1={Y(0)} y2={Y(0)} stroke={P.border} strokeWidth="1" strokeDasharray="3 4" />
+        <polyline points={path} fill="none" stroke="url(#lineGrad)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"
+          style={{ filter: "drop-shadow(0 0 6px rgba(104,116,232,0.35))" }} />
         {points.map((p, i) => (
-          <circle key={i} cx={X(i)} cy={Y(p.score)} r={i === points.length - 1 ? 4 : 2.5}
+          <circle key={i} cx={X(i)} cy={Y(p.score)} r={i === points.length - 1 ? 4 : 2.3}
             fill={i === points.length - 1 ? P.gold : P.win} />
         ))}
       </svg>
@@ -362,12 +491,12 @@ const CumulativeLine = ({ points }) => {
   );
 };
 
-const HBars = ({ data, color, colorFn }) => (
+/* section header: serious title with gradient signature bar */
+const TitleBlock = ({ eyebrow, title }) => (
   <div>
-    {data.length === 0 && <div style={{ color: P.faint, fontSize: 13, fontFamily: SANS }}>No closed trades yet.</div>}
-    {data.map((d) => (
-      <EdgeBar key={d.name} label={d.name} wr={d.wr} n={d.n} color={colorFn ? colorFn(d) : color} />
-    ))}
+    <div style={{ fontSize: 11, textTransform: "uppercase", color: P.faint, letterSpacing: "0.18em", fontFamily: SANS }}>{eyebrow}</div>
+    <h1 style={{ fontSize: 27, fontWeight: 750, letterSpacing: "-0.02em", color: P.text, fontFamily: SANS, marginTop: 3 }}>{title}</h1>
+    <div style={{ width: 42, height: 3, borderRadius: 2, background: GRAD_PRIMARY, marginTop: 8 }} />
   </div>
 );
 
@@ -376,8 +505,8 @@ const AccountModal = ({ initial, onSave, onCancel }) => {
   const [f, setF] = useState(initial || { name: "", balance: "", maxRisk: "", startDate: todayISO() });
   const ok = f.name.trim() && f.maxRisk;
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(27,23,34,0.82)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}>
-      <div className="slide-anim" style={{ ...glass({ background: "rgba(36,31,44,0.92)" }), borderRadius: "28px 28px 0 0", padding: "24px 20px 36px", fontFamily: SANS }}>
+    <div className="fade-anim" style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(16,13,20,0.84)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)" }}>
+      <div className="slide-anim" style={{ ...glass({ background: "rgba(28,23,36,0.95)" }), borderRadius: "26px 26px 0 0", padding: "24px 20px 36px", fontFamily: SANS }}>
         <h2 style={{ color: P.text, fontSize: 20, fontWeight: 700, marginBottom: 20 }}>{initial ? "Edit account" : "New account"}</h2>
         <Field label="Name"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="FTMO 100K 1-step" /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -386,9 +515,9 @@ const AccountModal = ({ initial, onSave, onCancel }) => {
         </div>
         <Field label="Start date"><Input type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></Field>
         <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-          <button onClick={onCancel} className="jpress" style={{ ...glass(), flex: 1, padding: "14px 0", borderRadius: 16, color: P.dim, fontSize: 16, fontWeight: 500 }}>Cancel</button>
+          <button onClick={onCancel} className="jpress" style={{ ...glass(), flex: 1, padding: "14px 0", borderRadius: 14, color: P.dim, fontSize: 16, fontWeight: 500, fontFamily: SANS }}>Cancel</button>
           <button onClick={() => ok && onSave(f)} className="jpress"
-            style={{ flex: 1, padding: "14px 0", borderRadius: 16, background: ok ? GRAD_PRIMARY : P.slate, color: "#fff", fontSize: 16, fontWeight: 700, opacity: ok ? 1 : 0.5 }}>
+            style={{ flex: 1, padding: "14px 0", borderRadius: 14, background: ok ? GRAD_PRIMARY : P.slate, color: "#fff", fontSize: 16, fontWeight: 700, opacity: ok ? 1 : 0.5, fontFamily: SANS, boxShadow: ok ? "0 8px 22px rgba(104,116,232,0.35)" : "none" }}>
             Save
           </button>
         </div>
@@ -402,22 +531,60 @@ const App = () => {
   const [data, setData] = useState(loadData);
   const [saveError, setSaveError] = useState(false);
   const [currentId, setCurrentId] = useState(null);
-  const [accModal, setAccModal] = useState(null); // null | "new" | accountId
-  const [confirmAcc, setConfirmAcc] = useState(null); // {id, action}
+  const [accModal, setAccModal] = useState(null);
+  const [confirmAcc, setConfirmAcc] = useState(null);
 
   const persist = (next) => { setData(next); setSaveError(!saveData(next)); };
-
   const updateAccount = (id, patch) =>
     persist({ ...data, accounts: data.accounts.map((a) => (a.id === id ? { ...a, ...patch } : a)) });
-
   const current = data.accounts.find((a) => a.id === currentId) || null;
 
-  /* ----- home ----- */
+  /* portfolio totals across accounts */
+  const portfolio = useMemo(() => {
+    const all = data.accounts.flatMap((a) => a.trades.map((t) => ({ t, a })));
+    const executed = all.filter((x) => x.t.executed);
+    const closed = executed.filter((x) => x.t.outcome === "Win" || x.t.outcome === "Loss");
+    const wins = closed.filter((x) => x.t.outcome === "Win").length;
+    return {
+      accounts: data.accounts.filter((a) => a.status !== "closed").length,
+      trades: executed.length,
+      wr: closed.length ? Math.round((wins / closed.length) * 100) : null,
+      flags: all.filter((x) => isFlagged(x.t, x.a)).length,
+      skipped: all.filter((x) => !x.t.executed).length,
+    };
+  }, [data]);
+
+  const todayLabel = useMemo(() => {
+    const d = new Date();
+    return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+  }, []);
+
   const renderHome = () => (
-    <div className="scrollpane fade-anim" style={{ paddingBottom: 130, fontFamily: SANS }}>
-      <div style={{ padding: "max(24px, env(safe-area-inset-top)) 16px 16px" }}>
-        <div style={{ fontSize: 11, textTransform: "uppercase", color: P.faint, letterSpacing: "0.16em" }}>STATE FIRST · PRE-STATE ≥ {MIN_PRESTATE} · A++ ONLY</div>
-        <h1 style={{ fontSize: 30, fontWeight: 800, background: GRAD_TITLE, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>Trade Journal</h1>
+    <div className="scrollpane" style={{ paddingBottom: 120, fontFamily: SANS }}>
+      <div style={{ padding: "max(26px, env(safe-area-inset-top)) 18px 0" }}>
+        <div className="rise" style={{ "--i": 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <TitleBlock eyebrow={todayLabel} title="Trade Journal" />
+          </div>
+          <div style={{ fontSize: 13, color: P.dim, marginTop: 14 }}>State first. The chart comes second.</div>
+        </div>
+
+        {/* portfolio strip */}
+        <div className="rise" style={{ "--i": 1, ...glass(), borderRadius: 20, marginTop: 18, padding: "14px 16px", display: "flex", justifyContent: "space-between" }}>
+          {[
+            ["Accounts", portfolio.accounts, P.text],
+            ["Trades", portfolio.trades, P.text],
+            ["WR", portfolio.wr === null ? "—" : `${portfolio.wr}%`, P.win],
+            ["Flags", portfolio.flags, portfolio.flags > 0 ? P.gold : P.faint],
+            ["Skipped", portfolio.skipped, P.slate === undefined ? P.dim : "#9BA3B8"],
+          ].map(([l, v, c]) => (
+            <div key={l} style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 16, color: c }}>{v}</div>
+              <div style={{ fontSize: 9, color: P.faint, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 2 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+
         {saveError && (
           <div style={{ ...glass({ border: "1px solid rgba(252,68,34,0.4)" }), marginTop: 12, borderRadius: 16, padding: "12px 16px", fontSize: 13, color: P.loss }}>
             Could not save — storage may be full or blocked. Export your data as backup.
@@ -425,60 +592,72 @@ const App = () => {
         )}
       </div>
 
-      <div style={{ padding: "0 16px" }}>
+      <div style={{ padding: "16px 18px 0" }}>
         {data.accounts.length === 0 && (
-          <div style={{ ...glass(), borderRadius: 24, padding: "56px 20px", textAlign: "center", color: P.faint, fontSize: 14 }}>
+          <div className="rise" style={{ "--i": 2, ...glass(), borderRadius: 22, padding: "56px 20px", textAlign: "center", color: P.faint, fontSize: 14 }}>
             No accounts yet. Create your first one below.
           </div>
         )}
-        {data.accounts.map((acc) => {
+        {data.accounts.map((acc, idx) => {
           const s = accountStats(acc);
           const closed = acc.status === "closed";
+          const spark = cumulativeOf(acc.trades);
           return (
-            <div key={acc.id}
-              style={{ ...glass(), borderRadius: 24, padding: "16px 16px 12px", marginBottom: 14, opacity: closed ? 0.45 : 1, filter: closed ? "grayscale(1)" : "none" }}>
+            <div key={acc.id} className="rise"
+              style={{ "--i": Math.min(idx + 2, 8), ...glass(), borderRadius: 22, padding: "16px 16px 10px", marginBottom: 14, opacity: closed ? 0.45 : 1, filter: closed ? "grayscale(1)" : "none" }}>
               <div onClick={() => setCurrentId(acc.id)} style={{ cursor: "pointer" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                  <div style={{ color: P.text, fontSize: 17, fontWeight: 700 }}>{acc.name}{closed ? " · closed" : ""}</div>
-                  <div style={{ fontFamily: MONO, color: P.dim, fontSize: 13 }}>{fmtMoney(acc.balance)} $</div>
-                </div>
-                <div style={{ fontSize: 11, color: P.faint, marginTop: 2 }}>
-                  since {acc.startDate} · max risk {acc.maxRisk}$
-                </div>
-                <div style={{ display: "flex", gap: 18, marginTop: 12, marginBottom: 10 }}>
-                  {[
-                    ["Trades", s.trades, P.text],
-                    ["WR", s.wr === null ? "—" : `${s.wr}%`, P.win],
-                    ["Flags", s.flags, s.flags > 0 ? P.loss : P.faint],
-                    ["Skipped", s.skipped, P.gold],
-                  ].map(([l, v, c]) => (
-                    <div key={l}>
-                      <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 16, color: c }}>{v}</div>
-                      <div style={{ fontSize: 10, color: P.faint, textTransform: "uppercase", letterSpacing: "0.08em" }}>{l}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: P.text, fontSize: 17, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {acc.name}{closed ? " · closed" : ""}
                     </div>
-                  ))}
+                    <div style={{ fontSize: 11, color: P.faint, marginTop: 3, fontFamily: MONO }}>
+                      {fmtMoney(acc.balance)} $ · max {acc.maxRisk}$ · since {acc.startDate}
+                    </div>
+                    <div style={{ display: "flex", gap: 16, marginTop: 12 }}>
+                      {[
+                        ["Trades", s.trades, P.text],
+                        ["Flags", s.flags, s.flags > 0 ? P.gold : P.faint],
+                        ["Skipped", s.skipped, "#9BA3B8"],
+                      ].map(([l, v, c]) => (
+                        <div key={l}>
+                          <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 15, color: c }}>{v}</div>
+                          <div style={{ fontSize: 9, color: P.faint, textTransform: "uppercase", letterSpacing: "0.08em" }}>{l}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <Ring size={62} stroke={5} pct={s.wr ?? 0} color={s.wr !== null && s.wr >= 50 ? P.win : P.loss}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: P.text, fontFamily: MONO }}>{s.wr === null ? "—" : `${s.wr}`}</span>
+                    <span style={{ fontSize: 7, color: P.faint, letterSpacing: "0.18em" }}>WR%</span>
+                  </Ring>
                 </div>
+                {spark.length >= 2 && (
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${P.border}` }}>
+                    <Spark points={spark} width={300} height={34} />
+                  </div>
+                )}
               </div>
-              <div style={{ display: "flex", gap: 8, borderTop: `1px solid ${P.border}`, paddingTop: 10 }}>
-                <button onClick={() => setAccModal(acc.id)} className="jpress" style={{ color: P.dim, fontSize: 12, padding: "4px 10px", borderRadius: 10 }}>Edit</button>
+              <div style={{ display: "flex", gap: 8, borderTop: `1px solid ${P.border}`, paddingTop: 8, marginTop: 10 }}>
+                <button onClick={() => setAccModal(acc.id)} className="jpress" style={{ color: P.dim, fontSize: 12, padding: "5px 10px", fontFamily: SANS }}>Edit</button>
                 {confirmAcc && confirmAcc.id === acc.id ? (
                   <React.Fragment>
-                    <button onClick={() => { 
+                    <button onClick={() => {
                         if (confirmAcc.action === "delete") persist({ ...data, accounts: data.accounts.filter((a) => a.id !== acc.id) });
                         else updateAccount(acc.id, { status: closed ? "active" : "closed" });
                         setConfirmAcc(null);
                       }} className="jpress"
-                      style={{ background: P.loss, color: "#fff", fontSize: 12, padding: "4px 12px", borderRadius: 10, fontWeight: 700 }}>
+                      style={{ background: P.loss, color: "#fff", fontSize: 12, padding: "5px 12px", borderRadius: 9, fontWeight: 700, fontFamily: SANS }}>
                       Confirm {confirmAcc.action}
                     </button>
-                    <button onClick={() => setConfirmAcc(null)} className="jpress" style={{ color: P.faint, fontSize: 12, padding: "4px 10px" }}>✕</button>
+                    <button onClick={() => setConfirmAcc(null)} className="jpress" style={{ color: P.faint, fontSize: 12, padding: "5px 10px", fontFamily: SANS }}>✕</button>
                   </React.Fragment>
                 ) : (
                   <React.Fragment>
-                    <button onClick={() => setConfirmAcc({ id: acc.id, action: closed ? "reopen" : "close" })} className="jpress" style={{ color: P.gold, fontSize: 12, padding: "4px 10px", borderRadius: 10 }}>
+                    <button onClick={() => setConfirmAcc({ id: acc.id, action: closed ? "reopen" : "close" })} className="jpress" style={{ color: P.gold, fontSize: 12, padding: "5px 10px", fontFamily: SANS }}>
                       {closed ? "Reopen" : "Close"}
                     </button>
-                    <button onClick={() => setConfirmAcc({ id: acc.id, action: "delete" })} className="jpress" style={{ color: P.loss, fontSize: 12, padding: "4px 10px", borderRadius: 10 }}>Delete</button>
+                    <button onClick={() => setConfirmAcc({ id: acc.id, action: "delete" })} className="jpress" style={{ color: P.loss, fontSize: 12, padding: "5px 10px", fontFamily: SANS }}>Delete</button>
                   </React.Fragment>
                 )}
               </div>
@@ -486,20 +665,19 @@ const App = () => {
           );
         })}
 
-        <button onClick={() => setAccModal("new")} className="jpress"
-          style={{ ...glass(), width: "100%", borderRadius: 24, padding: "16px 0", color: P.text, fontSize: 15, fontWeight: 600, marginTop: 4, border: `1.5px dashed ${P.border}` }}>
+        <button onClick={() => setAccModal("new")} className="jpress rise"
+          style={{ "--i": Math.min(data.accounts.length + 2, 9), ...glass(), width: "100%", borderRadius: 22, padding: "16px 0", color: P.text, fontSize: 15, fontWeight: 600, marginTop: 2, fontFamily: SANS, border: `1.5px dashed ${P.border}` }}>
           + Add trading account
         </button>
       </div>
     </div>
   );
 
-  /* ----- render ----- */
   return (
     <div>
       <Background />
       {current
-        ? <AccountView acc={current} onBack={() => setCurrentId(null)}
+        ? <AccountView key={current.id} acc={current} onBack={() => setCurrentId(null)}
             onUpdate={(patch) => updateAccount(current.id, patch)}
             saveError={saveError} />
         : renderHome()}
@@ -508,11 +686,8 @@ const App = () => {
           initial={accModal === "new" ? null : (() => { const a = data.accounts.find((x) => x.id === accModal); return a ? { name: a.name, balance: a.balance, maxRisk: a.maxRisk, startDate: a.startDate } : null; })()}
           onCancel={() => setAccModal(null)}
           onSave={(f) => {
-            if (accModal === "new") {
-              persist({ ...data, accounts: [...data.accounts, { id: uid(), status: "active", trades: [], ...f }] });
-            } else {
-              updateAccount(accModal, f);
-            }
+            if (accModal === "new") persist({ ...data, accounts: [...data.accounts, { id: uid(), status: "active", trades: [], ...f }] });
+            else updateAccount(accModal, f);
             setAccModal(null);
           }}
         />
@@ -544,17 +719,23 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
     const closed = trades.filter((t) => t.executed && (t.outcome === "Win" || t.outcome === "Loss"));
     const hi = closed.filter((t) => t.preState !== null && t.preState >= MIN_PRESTATE);
     const lo = closed.filter((t) => t.preState !== null && t.preState < MIN_PRESTATE);
+    const executed = trades.filter((t) => t.executed);
+    const flags = trades.filter((t) => isFlagged(t, acc)).length;
     return {
       winRate: wrOf(trades), hiWR: wrOf(hi), loWR: wrOf(lo), hiN: hi.length, loN: lo.length,
-      flags: trades.filter((t) => isFlagged(t, acc)).length,
-      count: trades.filter((t) => t.executed).length,
+      flags,
+      count: executed.length,
       skipped: trades.filter((t) => !t.executed).length,
+      discipline: executed.length ? Math.round(((executed.length - flags) / executed.length) * 100) : null,
+      avgPre: (() => {
+        const ps = executed.map((t) => parseFloat(t.preState)).filter((v) => !isNaN(v));
+        return ps.length ? Math.round((ps.reduce((a, b) => a + b, 0) / ps.length) * 10) / 10 : null;
+      })(),
     };
   }, [trades, acc]);
 
   const pairsPresent = useMemo(() => [...new Set(trades.map((t) => t.pair).filter(Boolean))], [trades]);
   const sessionsPresent = useMemo(() => [...new Set(trades.map((t) => t.session).filter(Boolean))], [trades]);
-
   const todayHasTrade = useMemo(() => trades.some((t) => t.date === todayISO() && t.executed), [trades]);
 
   const visible = useMemo(() => {
@@ -573,8 +754,7 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
   const charts = useMemo(() => {
     const closed = trades.filter((t) => t.executed && (t.outcome === "Win" || t.outcome === "Loss"))
       .sort((a, b) => (a.date > b.date ? 1 : -1));
-    let score = 0;
-    const cumulative = closed.map((t) => { score += t.outcome === "Win" ? 1 : -1; return { d: shortDate(t.date), score }; });
+    const cumulative = cumulativeOf(trades);
     const groupWR = (keyFn) => {
       const g = {};
       for (const t of closed) { const k = keyFn(t); if (!k) continue; (g[k] = g[k] || []).push(t); }
@@ -628,7 +808,7 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
     setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
-  /* wizard handlers */
+  /* wizard */
   const startNew = () => setWizard({ step: -1, trade: emptyTrade(acc), editing: false });
   const startEdit = (t) => setWizard({ step: 0, trade: { ...t }, editing: true });
   const upd = (patch) => setWizard((w) => ({ ...w, trade: { ...w.trade, ...patch } }));
@@ -641,16 +821,23 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
   };
   const deleteTrade = (id) => { setTrades(trades.filter((t) => t.id !== id)); setConfirmDelete(null); setExpanded(null); };
 
-  const rowTint = (t) => (!t.executed ? "transparent" : t.outcome === "Win" ? P.winTint : t.outcome === "Loss" ? P.lossTint : "transparent");
+  /* underlight rows — kept and refined */
+  const rowGlow = (t) => {
+    if (!t.executed) return { background: `linear-gradient(90deg, ${P.slateTint} 0%, transparent 65%)` };
+    if (t.outcome === "Win") return { background: `linear-gradient(90deg, ${P.winTint} 0%, transparent 70%)` };
+    if (t.outcome === "Loss") return { background: `linear-gradient(90deg, ${P.lossTint} 0%, transparent 70%)` };
+    if (t.outcome === "Open") return { background: `linear-gradient(90deg, ${P.goldTint} 0%, transparent 60%)` };
+    return {};
+  };
 
   const ResultPill = ({ t }) => {
-    if (!t.executed) return <span style={{ padding: "2px 6px", borderRadius: 999, fontWeight: 700, fontSize: 10, background: P.slate, color: P.text, opacity: 0.8, fontFamily: SANS }}>SKIP</span>;
+    if (!t.executed) return <span style={{ padding: "3px 7px", borderRadius: 999, fontWeight: 700, fontSize: 10, background: P.slate, color: P.text, opacity: 0.85, fontFamily: SANS }}>SKIP</span>;
     const map = {
       Win: { c: "#fff", bg: P.win, l: "WIN" }, Loss: { c: "#fff", bg: P.loss, l: "LOSS" },
       Open: { c: "#241F2C", bg: P.gold, l: "OPEN" }, BE: { c: P.text, bg: P.slate, l: "BE" },
     };
     const m = map[t.outcome] || map.BE;
-    return <span style={{ padding: "2px 6px", borderRadius: 999, fontWeight: 700, fontSize: 10, background: m.bg, color: m.c, fontFamily: SANS }}>{m.l}</span>;
+    return <span style={{ padding: "3px 7px", borderRadius: 999, fontWeight: 700, fontSize: 10, background: m.bg, color: m.c, fontFamily: SANS }}>{m.l}</span>;
   };
 
   /* ---------- wizard ---------- */
@@ -661,52 +848,48 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
     const vColor = verdict.v === "A++" ? P.gold : P.loss;
     const totalSteps = trade.executed ? 4 : 3;
 
-    const StepDots = () => (
-      <div style={{ display: "flex", gap: 6 }}>
-        {Array.from({ length: totalSteps }).map((_, i) => (
-          <div key={i} style={{ height: 6, width: 36, borderRadius: 999, background: i <= step ? GRAD_PRIMARY : "rgba(219,219,219,0.12)" }} />
-        ))}
-      </div>
-    );
-
     return (
-      <div className="fade-anim" style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "rgba(27,23,34,0.86)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}>
+      <div className="fade-anim" style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "rgba(16,13,20,0.88)", backdropFilter: "blur(26px)", WebkitBackdropFilter: "blur(26px)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "max(16px, env(safe-area-inset-top)) 20px 16px" }}>
           <button onClick={() => setWizard(null)} style={{ color: P.dim, fontFamily: SANS, fontSize: 14 }}>Cancel</button>
-          {step >= 0 ? <StepDots /> : <div />}
+          {step >= 0 ? (
+            <div style={{ display: "flex", gap: 6 }}>
+              {Array.from({ length: totalSteps }).map((_, i) => (
+                <div key={i} style={{ height: 5, width: 34, borderRadius: 999, background: i <= step ? GRAD_PRIMARY : P.track, transition: "background 200ms" }} />
+              ))}
+            </div>
+          ) : <div />}
           <div style={{ fontSize: 13, color: P.faint, fontFamily: MONO }}>{step >= 0 ? `${step + 1}/${totalSteps}` : ""}</div>
         </div>
 
         <div key={step} className="fade-anim" style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px", fontFamily: SANS }}>
-          {/* STEP -1 — execution choice */}
           {step === -1 && (
             <div style={{ paddingTop: 40 }}>
               <h2 style={{ color: P.text, fontSize: 24, fontWeight: 700, marginBottom: 6 }}>What is this entry?</h2>
               <p style={{ color: P.dim, fontSize: 14, marginBottom: 28 }}>Skipped setups are intel — they earn no flags and don't touch your win rate.</p>
-              <button onClick={() => setWizard((w) => ({ ...w, step: 0, trade: { ...w.trade, executed: true } }))} className="jpress"
-                style={{ width: "100%", padding: "22px 18px", borderRadius: 20, background: GRAD_PRIMARY, color: "#fff", textAlign: "left", marginBottom: 14, boxShadow: "0 8px 26px rgba(104,116,232,0.35)" }}>
+              <button onClick={() => setWizard((w) => ({ ...w, step: 0, trade: { ...w.trade, executed: true } }))} className="jpress rise" 
+                style={{ "--i": 0, width: "100%", padding: "22px 18px", borderRadius: 18, background: GRAD_PRIMARY, color: "#fff", textAlign: "left", marginBottom: 14, boxShadow: "0 8px 24px rgba(104,116,232,0.32)" }}>
                 <div style={{ fontSize: 18, fontWeight: 800 }}>Execution</div>
                 <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>I'm taking / took this trade</div>
               </button>
-              <button onClick={() => setWizard((w) => ({ ...w, step: 0, trade: { ...w.trade, executed: false, outcome: "Open" } }))} className="jpress"
-                style={{ ...glass(), width: "100%", padding: "22px 18px", borderRadius: 20, color: P.text, textAlign: "left" }}>
+              <button onClick={() => setWizard((w) => ({ ...w, step: 0, trade: { ...w.trade, executed: false, outcome: "Open" } }))} className="jpress rise"
+                style={{ "--i": 1, ...glass(), width: "100%", padding: "22px 18px", borderRadius: 18, color: P.text, textAlign: "left" }}>
                 <div style={{ fontSize: 18, fontWeight: 800 }}>No execution</div>
                 <div style={{ fontSize: 13, color: P.dim, marginTop: 2 }}>A setup I saw and skipped — log the rep</div>
               </button>
             </div>
           )}
 
-          {/* STEP 0 — gate */}
           {step === 0 && (
             <div>
               <h2 style={{ color: P.text, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>The gate</h2>
               <p style={{ color: P.dim, fontSize: 14, marginBottom: 20 }}>State first. The chart comes second.</p>
               {todayHasTrade && !editing && trade.executed && (
-                <div style={{ ...glass({ border: "1px solid rgba(255,235,59,0.3)" }), borderRadius: 16, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: P.gold }}>
+                <div style={{ ...glass({ border: "1px solid rgba(255,235,59,0.3)" }), borderRadius: 14, padding: "12px 16px", marginBottom: 20, fontSize: 13, color: P.gold }}>
                   Stop rule: a trade is already logged today.
                 </div>
               )}
-              <Field label={`Pre-state · flags at ≤ 3`}>
+              <Field label="Pre-state · flags at ≤ 3">
                 <ScaleChips value={trade.preState} onChange={(n) => upd({ preState: n })} />
               </Field>
               <Field label="Hours slept"><ChipsPlus options={SLEEP} value={trade.sleep} onChange={(v) => upd({ sleep: v })} placeholder="h…" /></Field>
@@ -722,8 +905,8 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                   </Chip>
                 ))}
               </Field>
-              <div key={verdict.v} className="pop-anim" style={{ ...glass({ border: `1.5px dashed ${vColor}55`, boxShadow: `inset 0 0 40px ${vColor}0F` }), borderRadius: 24, padding: "28px 0", textAlign: "center", marginBottom: 8 }}>
-                <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: "0.15em", fontFamily: MONO, color: vColor, textShadow: `0 0 24px ${vColor}55` }}>{verdict.v}</div>
+              <div key={verdict.v} className="pop-anim" style={{ ...glass({ border: `1.5px dashed ${vColor}55`, boxShadow: `inset 0 0 40px ${vColor}0E` }), borderRadius: 20, padding: "28px 0", textAlign: "center", marginBottom: 8 }}>
+                <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: "0.15em", fontFamily: MONO, color: vColor, textShadow: `0 0 20px ${vColor}50` }}>{verdict.v}</div>
                 <div style={{ fontSize: 12, marginTop: 8, color: P.dim }}>
                   {verdict.why ? verdict.why : `${trade.confluenceChips.length}/${CONFLUENCES.length} confluences · pre-state ${trade.preState ?? "—"}`}
                 </div>
@@ -734,7 +917,6 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
             </div>
           )}
 
-          {/* STEP 1 — setup */}
           {step === 1 && (
             <div>
               <h2 style={{ color: P.text, fontSize: 24, fontWeight: 700, marginBottom: 20 }}>The setup</h2>
@@ -767,11 +949,11 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                       ))}
                       <input value={trade.risk} onChange={(e) => upd({ risk: e.target.value })} placeholder="$" inputMode="decimal"
                         className="jfocus"
-                        style={{ ...glass(), display: "inline-block", padding: "6px 12px", borderRadius: 999, fontSize: 13, marginBottom: 8, color: P.text, fontFamily: MONO, outline: "none", width: 80 }} />
+                        style={{ ...glass(), display: "inline-block", padding: "6px 12px", borderRadius: 999, fontSize: 13, marginBottom: 8, color: P.text, fontFamily: MONO, outline: "none", width: 78 }} />
                     </div>
                   </Field>
                   {riskOver && (
-                    <div style={{ ...glass({ border: "1px solid rgba(252,68,34,0.4)" }), borderRadius: 16, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: P.loss }}>
+                    <div style={{ ...glass({ border: "1px solid rgba(252,68,34,0.4)" }), borderRadius: 14, padding: "12px 16px", marginBottom: 16, fontSize: 13, color: P.loss }}>
                       Above this account's {acc.maxRisk}$ max — this trade will carry a flag.
                     </div>
                   )}
@@ -783,7 +965,6 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
             </div>
           )}
 
-          {/* STEP 2 — result (executed) or reflection (skipped) */}
           {step === 2 && trade.executed && (
             <div>
               <h2 style={{ color: P.text, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Result</h2>
@@ -819,7 +1000,6 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
             </div>
           )}
 
-          {/* STEP 3 — review (executed only) */}
           {step === 3 && trade.executed && (
             <div>
               <h2 style={{ color: P.text, fontSize: 24, fontWeight: 700, marginBottom: 20 }}>Review</h2>
@@ -837,11 +1017,11 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
         {step >= 0 && (
           <div style={{ display: "flex", gap: 12, padding: "16px 20px max(20px, env(safe-area-inset-bottom))" }}>
             <button onClick={() => setWizard((w) => ({ ...w, step: w.step - 1 }))} className="jpress"
-              style={{ ...glass(), flex: 1, padding: "14px 0", borderRadius: 16, color: P.dim, fontSize: 16, fontWeight: 500 }}>
+              style={{ ...glass(), flex: 1, padding: "14px 0", borderRadius: 14, color: P.dim, fontSize: 16, fontWeight: 500, fontFamily: SANS }}>
               Back
             </button>
             <button onClick={() => (step < totalSteps - 1 ? setWizard((w) => ({ ...w, step: w.step + 1 })) : saveTrade())} className="jpress"
-              style={{ flex: 1, padding: "14px 0", borderRadius: 16, background: GRAD_PRIMARY, color: "#fff", fontSize: 16, fontWeight: 700, boxShadow: "0 8px 26px rgba(104,116,232,0.4)" }}>
+              style={{ flex: 1, padding: "14px 0", borderRadius: 14, background: GRAD_PRIMARY, color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: SANS, boxShadow: "0 8px 22px rgba(104,116,232,0.35)" }}>
               {step < totalSteps - 1 ? "Next" : wizard.editing ? "Save changes" : "Log it"}
             </button>
           </div>
@@ -850,9 +1030,9 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
     );
   };
 
-  /* ---------- export panel ---------- */
+  /* ---------- export ---------- */
   const renderExport = () => (
-    <div className="fade-anim" style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "rgba(27,23,34,0.88)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}>
+    <div className="fade-anim" style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "rgba(16,13,20,0.9)", backdropFilter: "blur(26px)", WebkitBackdropFilter: "blur(26px)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "max(16px, env(safe-area-inset-top)) 20px 16px" }}>
         <button onClick={() => setExportOpen(false)} style={{ color: P.dim, fontFamily: SANS, fontSize: 14 }}>Close</button>
         <div style={{ color: P.text, fontWeight: 600, fontFamily: SANS, fontSize: 14 }}>Export · {acc.name}</div>
@@ -863,13 +1043,13 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
           Download saves a CSV file. Copy puts it on your clipboard — paste it to Claude for the weekly analysis.
         </p>
         <textarea ref={csvRef} readOnly value={csvText} onFocus={(e) => e.target.select()}
-          style={{ ...glass(), flex: 1, width: "100%", padding: "12px 16px", borderRadius: 16, fontSize: 11, color: P.text, fontFamily: MONO, outline: "none", minHeight: 180, resize: "none" }} />
+          style={{ ...glass(), flex: 1, width: "100%", padding: "12px 16px", borderRadius: 14, fontSize: 11, color: P.text, fontFamily: MONO, outline: "none", minHeight: 180, resize: "none" }} />
         <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
           <button onClick={downloadCSV} className="jpress"
-            style={{ flex: 1, padding: "14px 0", borderRadius: 16, background: GRAD_PRIMARY, color: "#fff", fontSize: 16, fontWeight: 700, boxShadow: "0 8px 26px rgba(104,116,232,0.4)" }}>
+            style={{ flex: 1, padding: "14px 0", borderRadius: 14, background: GRAD_PRIMARY, color: "#fff", fontSize: 16, fontWeight: 700, fontFamily: SANS, boxShadow: "0 8px 22px rgba(104,116,232,0.35)" }}>
             Download
           </button>
-          <button onClick={copyCSV} className="jpress" style={{ ...glass(), flex: 1, padding: "14px 0", borderRadius: 16, color: P.text, fontSize: 16, fontWeight: 500 }}>
+          <button onClick={copyCSV} className="jpress" style={{ ...glass(), flex: 1, padding: "14px 0", borderRadius: 14, color: P.text, fontSize: 16, fontWeight: 500, fontFamily: SANS }}>
             {copied ? "Copied ✓" : "Copy"}
           </button>
         </div>
@@ -878,51 +1058,106 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
   );
 
   /* ---------- insights ---------- */
+  const ChartCard = ({ title, children, i = 0 }) => (
+    <div className="rise" style={{ "--i": i, ...glass(), borderRadius: 22, padding: "16px 14px", marginBottom: 14 }}>
+      <div style={{ fontSize: 11, textTransform: "uppercase", marginBottom: 12, color: P.faint, letterSpacing: "0.14em", fontFamily: SANS }}>{title}</div>
+      {children}
+    </div>
+  );
+
   const renderInsights = () => (
     <div style={{ padding: "0 16px" }}>
-      {charts.cumulative.length === 0 ? (
-        <div style={{ ...glass(), borderRadius: 24, padding: "56px 20px", textAlign: "center", color: P.faint, fontSize: 14, fontFamily: SANS }}>
+      {stats.count === 0 ? (
+        <div style={{ ...glass(), borderRadius: 22, padding: "56px 20px", textAlign: "center", color: P.faint, fontSize: 14, fontFamily: SANS }}>
           Close a few trades and the charts wake up.
         </div>
       ) : (
         <React.Fragment>
-          <ChartCard title="Performance · cumulative wins − losses"><CumulativeLine points={charts.cumulative} /></ChartCard>
-          <ChartCard title="Win rate by pre-state">
-            <HBars data={charts.byPre} colorFn={(d) => (d.pre >= MIN_PRESTATE ? P.win : P.loss)} />
+          {/* hero: dual ring */}
+          <div className="rise" style={{ "--i": 0, ...glass(), borderRadius: 22, padding: "18px 16px", marginBottom: 14, display: "flex", alignItems: "center", gap: 18 }}>
+            <DualRing hiWR={stats.hiWR} loWR={stats.loWR} centerWR={stats.winRate} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", color: P.faint, letterSpacing: "0.14em", fontFamily: SANS, marginBottom: 10 }}>The edge</div>
+              <div style={{ fontSize: 13, fontFamily: SANS, marginBottom: 7 }}>
+                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: P.win, marginRight: 7, boxShadow: `0 0 6px ${P.win}66` }} />
+                <span style={{ color: P.dim }}>State ≥ {MIN_PRESTATE} · </span>
+                <b style={{ color: P.win, fontFamily: MONO }}>{stats.hiWR === null ? "—" : `${stats.hiWR}%`}</b>
+                <span style={{ color: P.faint, fontFamily: MONO }}> · {stats.hiN} tr</span>
+              </div>
+              <div style={{ fontSize: 13, fontFamily: SANS, marginBottom: 7 }}>
+                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: P.loss, marginRight: 7, boxShadow: `0 0 6px ${P.loss}66` }} />
+                <span style={{ color: P.dim }}>State &lt; {MIN_PRESTATE} · </span>
+                <b style={{ color: P.loss, fontFamily: MONO }}>{stats.loWR === null ? "—" : `${stats.loWR}%`}</b>
+                <span style={{ color: P.faint, fontFamily: MONO }}> · {stats.loN} tr</span>
+              </div>
+              <div style={{ fontSize: 11, color: P.faint, fontFamily: MONO, marginTop: 10 }}>
+                {stats.count} executed · {stats.skipped} skipped · ⚑ {stats.flags}
+              </div>
+            </div>
+          </div>
+
+          {/* ring trio */}
+          <div className="rise" style={{ "--i": 1, ...glass(), borderRadius: 22, padding: "18px 8px 14px", marginBottom: 14, display: "flex", justifyContent: "space-around" }}>
+            {[
+              ["Discipline", stats.discipline, stats.discipline !== null && stats.discipline >= 70 ? P.win : P.loss, stats.discipline === null ? "—" : `${stats.discipline}%`],
+              ["Avg state", stats.avgPre === null ? null : (stats.avgPre / 5) * 100, stats.avgPre !== null && stats.avgPre >= MIN_PRESTATE ? P.win : P.loss, stats.avgPre === null ? "—" : stats.avgPre],
+              ["Reps banked", stats.count + stats.skipped === 0 ? null : (stats.skipped / Math.max(1, stats.count + stats.skipped)) * 100, P.gold, String(stats.skipped)],
+            ].map(([label, pct, color, center]) => (
+              <div key={label} style={{ textAlign: "center" }}>
+                <Ring size={74} stroke={5.5} pct={pct ?? 0} color={color}>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: P.text, fontFamily: MONO }}>{center}</span>
+                </Ring>
+                <div style={{ fontSize: 9, color: P.faint, textTransform: "uppercase", letterSpacing: "0.12em", marginTop: 7, fontFamily: SANS }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <ChartCard title="Performance · cumulative wins − losses" i={2}><CumulativeLine points={charts.cumulative} /></ChartCard>
+          <ChartCard title="Win rate by pre-state" i={3}>
+            {charts.byPre.map((d, idx) => <EdgeBar key={d.name} label={d.name} wr={d.wr} n={d.n} color={d.pre >= MIN_PRESTATE ? P.win : P.loss} i={idx} />)}
           </ChartCard>
-          <ChartCard title="Win rate by pair"><HBars data={charts.byPair} color={P.win} /></ChartCard>
-          <ChartCard title="Win rate by session"><HBars data={charts.bySession} color={P.gold} /></ChartCard>
+          <ChartCard title="Win rate by pair" i={4}>
+            {charts.byPair.map((d, idx) => <EdgeBar key={d.name} label={d.name} wr={d.wr} n={d.n} color={P.win} i={idx} />)}
+          </ChartCard>
+          <ChartCard title="Win rate by session" i={5}>
+            {charts.bySession.map((d, idx) => <EdgeBar key={d.name} label={d.name} wr={d.wr} n={d.n} color={P.gold} i={idx} />)}
+          </ChartCard>
           <p style={{ fontSize: 11, textAlign: "center", color: P.faint, fontFamily: SANS, marginBottom: 16 }}>
-            Skipped setups are excluded. Low-sample bars mean little yet.
+            Skipped setups are excluded from win rates. Low-sample bars mean little yet.
           </p>
         </React.Fragment>
       )}
     </div>
   );
 
-  /* ---------- journal list ---------- */
-  const GRID = "2.6rem 1fr 1.3rem 1.6rem 2.2rem 3rem";
+  /* ---------- journal ---------- */
+  const GRID = "2.5rem 1fr 1.3rem 2rem 2.3rem 3.1rem";
   const renderJournal = () => (
     <div>
-      <div style={{ padding: "0 16px", marginBottom: 16 }}>
-        <div style={{ ...glass(), borderRadius: 24, padding: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-            <div style={{ fontSize: 11, textTransform: "uppercase", color: P.faint, letterSpacing: "0.12em", fontFamily: SANS }}>The edge</div>
-            <div style={{ fontSize: 13, fontFamily: MONO, color: P.dim }}>
-              WR <span style={{ color: P.text, fontWeight: 700 }}>{stats.winRate === null ? "—" : `${stats.winRate}%`}</span>
-              <span style={{ color: P.faint }}> · {stats.count} tr · </span>
-              <span style={{ color: stats.flags > 0 ? P.loss : P.faint }}>⚑ {stats.flags}</span>
-              <span style={{ color: P.faint }}> · </span>
-              <span style={{ color: P.gold }}>{stats.skipped} skipped</span>
+      {/* edge card with ring */}
+      <div className="rise" style={{ "--i": 0, padding: "0 16px", marginBottom: 16 }}>
+        <div style={{ ...glass(), borderRadius: 22, padding: "16px", display: "flex", alignItems: "center", gap: 16 }}>
+          <Ring size={70} stroke={5.5} pct={stats.winRate ?? 0} color={stats.winRate !== null && stats.winRate >= 50 ? P.win : P.loss}>
+            <span style={{ fontSize: 16, fontWeight: 700, color: P.text, fontFamily: MONO }}>{stats.winRate === null ? "—" : stats.winRate}</span>
+            <span style={{ fontSize: 7, color: P.faint, letterSpacing: "0.16em" }}>WR%</span>
+          </Ring>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 9 }}>
+              <div style={{ fontSize: 11, textTransform: "uppercase", color: P.faint, letterSpacing: "0.14em", fontFamily: SANS }}>The edge</div>
+              <div style={{ fontSize: 12, fontFamily: MONO, color: P.faint }}>
+                {stats.count} tr · <span style={{ color: stats.flags > 0 ? P.gold : P.faint }}>⚑ {stats.flags}</span> · {stats.skipped} skip
+              </div>
+            </div>
+            <EdgeBar label={`State ≥ ${MIN_PRESTATE}`} wr={stats.hiWR} n={stats.hiN} color={P.win} i={0} />
+            <div style={{ marginBottom: -11 }}>
+              <EdgeBar label={`State < ${MIN_PRESTATE}`} wr={stats.loWR} n={stats.loN} color={P.loss} i={1} />
             </div>
           </div>
-          <EdgeBar label={`Pre-state ≥ ${MIN_PRESTATE}`} wr={stats.hiWR} n={stats.hiN} color={P.win} />
-          <EdgeBar label={`Pre-state < ${MIN_PRESTATE}`} wr={stats.loWR} n={stats.loN} color={P.loss} />
         </div>
       </div>
 
       {/* filters */}
-      <div className="hscroll" style={{ padding: "0 16px", marginBottom: 4 }}>
+      <div className="hscroll rise" style={{ "--i": 1, padding: "0 16px", marginBottom: 4 }}>
         {(fOutcome !== "All" || fExec !== "All" || fPair !== "All" || fSession !== "All") && (
           <Chip small active tone="loss" onClick={() => { setFOutcome("All"); setFExec("All"); setFPair("All"); setFSession("All"); }}>✕ Reset</Chip>
         )}
@@ -930,7 +1165,7 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
           <Chip key={f} small active={fOutcome === f} tone="gold" onClick={() => setFOutcome(f)}>{f}</Chip>
         ))}
       </div>
-      <div className="hscroll" style={{ padding: "0 16px", marginBottom: 12 }}>
+      <div className="hscroll rise" style={{ "--i": 2, padding: "0 16px", marginBottom: 12 }}>
         {["All", "Executed", "Skipped"].map((f) => (
           <Chip key={f} small active={fExec === f} onClick={() => setFExec(f)}>{f}</Chip>
         ))}
@@ -944,35 +1179,37 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
 
       <div style={{ padding: "0 16px" }}>
         {visible.length === 0 ? (
-          <div style={{ ...glass(), borderRadius: 24, padding: "56px 20px", textAlign: "center", color: P.faint, fontSize: 14, fontFamily: SANS }}>
+          <div className="rise" style={{ "--i": 3, ...glass(), borderRadius: 22, padding: "56px 20px", textAlign: "center", color: P.faint, fontSize: 14, fontFamily: SANS }}>
             Nothing here. Tap + to run the gate, or Import a CSV.
           </div>
         ) : (
-          <div style={{ ...glass(), borderRadius: 24, overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "10px 10px", fontSize: 10, textTransform: "uppercase", color: P.faint, letterSpacing: "0.06em", background: P.glassHi, fontFamily: SANS }}>
-              <div>Date</div><div>Pair</div><div>D</div><div style={{ textAlign: "right" }}>Pre</div><div style={{ textAlign: "right" }}>Risk</div><div style={{ textAlign: "right" }}>Res</div>
+          <div className="rise" style={{ "--i": 3, ...glass(), borderRadius: 22, overflow: "hidden" }}>
+            <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "10px 10px", fontSize: 10, textTransform: "uppercase", color: P.faint, letterSpacing: "0.06em", background: P.glassHi, fontFamily: SANS, alignItems: "center" }}>
+              <div>Date</div><div>Pair</div><div>D</div><div style={{ textAlign: "center" }}>Pre</div><div style={{ textAlign: "right" }}>Risk</div><div style={{ textAlign: "right" }}>Res</div>
             </div>
-            {visible.map((t) => {
+            {visible.map((t, idx) => {
               const open = expanded === t.id;
               const flag = isFlagged(t, acc);
+              const reasons = flagReasons(t, acc);
               return (
-                <div key={t.id} style={{ background: rowTint(t), borderTop: `1px solid ${P.border}`, opacity: t.executed ? 1 : 0.5 }}>
+                <div key={t.id} className={idx < 12 ? "rise" : undefined} style={{ "--i": Math.min(idx, 10), ...rowGlow(t), borderTop: `1px solid ${P.border}`, opacity: t.executed ? 1 : 0.55 }}>
                   <div onClick={() => setExpanded(open ? null : t.id)}
-                    style={{ display: "grid", gridTemplateColumns: GRID, padding: "12px 10px", alignItems: "center", cursor: "pointer" }}>
+                    style={{ display: "grid", gridTemplateColumns: GRID, padding: "11px 10px", alignItems: "center", cursor: "pointer" }}>
                     <div style={{ color: P.dim, fontFamily: MONO, fontSize: 12 }}>{shortDate(t.date)}</div>
                     <div style={{ color: P.text, fontFamily: MONO, fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: 4 }}>
-                      {t.pair || "—"}{flag && <span style={{ color: P.loss }}> ⚑</span>}
+                      {t.pair || "—"}{flag && <span style={{ color: P.gold }}> ⚑</span>}
                     </div>
                     <div style={{ fontSize: 14, color: t.direction === "Long" ? P.win : t.direction === "Short" ? P.loss : P.faint }}>
                       {t.direction === "Long" ? "▲" : t.direction === "Short" ? "▼" : ""}
                     </div>
-                    <div style={{ textAlign: "right", fontFamily: MONO, fontSize: 12, color: t.preState !== null && t.preState <= 3 ? P.loss : P.dim }}>{t.preState ?? "·"}</div>
+                    <div style={{ display: "flex", justifyContent: "center" }}><PreRing ps={t.preState} /></div>
                     <div style={{ textAlign: "right", fontFamily: MONO, fontSize: 12, color: parseFloat(t.risk) > parseFloat(acc.maxRisk) ? P.loss : P.dim }}>{t.executed ? (t.risk || "·") : "·"}</div>
                     <div style={{ textAlign: "right" }}><ResultPill t={t} /></div>
                   </div>
                   {open && (
                     <div className="fade-anim" style={{ padding: "0 12px 16px", fontSize: 13, color: P.dim, fontFamily: SANS }}>
-                      {!t.executed && <div style={{ marginBottom: 4, color: P.gold }}>Skipped setup — the rep was the trade.</div>}
+                      {!t.executed && <div style={{ marginBottom: 4, color: "#9BA3B8" }}>Skipped setup — the rep was the trade.</div>}
+                      {flag && <div style={{ marginBottom: 4, color: P.gold }}>⚑ Flagged: {reasons.join(" · ")}</div>}
                       {t.setup && <div style={{ marginBottom: 4 }}><span style={{ color: P.faint }}>Setup: </span>{t.setup}</div>}
                       {t.session && <div style={{ marginBottom: 4 }}><span style={{ color: P.faint }}>Session: </span>{t.session}{t.timeOfEntry ? ` · ${t.timeOfEntry}` : ""}{t.trend ? ` · trend: ${t.trend}` : ""}</div>}
                       {t.confluenceChips.length > 0 && <div style={{ marginBottom: 4 }}><span style={{ color: P.faint }}>Checklist: </span>{t.confluenceChips.join(", ")}</div>}
@@ -996,11 +1233,11 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                         {t.screenshotAfter && <a href={t.screenshotAfter.split(/\s+/)[0]} target="_blank" rel="noreferrer" style={{ color: P.win }}>After ↗</a>}
                       </div>
                       <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                        <button onClick={() => startEdit(t)} className="jpress" style={{ ...glass(), padding: "8px 14px", borderRadius: 12, color: P.text, fontSize: 13 }}>Edit</button>
+                        <button onClick={() => startEdit(t)} className="jpress" style={{ ...glass(), padding: "8px 14px", borderRadius: 11, color: P.text, fontSize: 13, fontFamily: SANS }}>Edit</button>
                         {confirmDelete === t.id ? (
-                          <button onClick={() => deleteTrade(t.id)} className="jpress" style={{ background: P.loss, color: "#fff", padding: "8px 14px", borderRadius: 12, fontSize: 13, fontWeight: 700 }}>Confirm delete</button>
+                          <button onClick={() => deleteTrade(t.id)} className="jpress" style={{ background: P.loss, color: "#fff", padding: "8px 14px", borderRadius: 11, fontSize: 13, fontWeight: 700, fontFamily: SANS }}>Confirm delete</button>
                         ) : (
-                          <button onClick={() => setConfirmDelete(t.id)} className="jpress" style={{ ...glass({ border: "1px solid rgba(252,68,34,0.35)" }), padding: "8px 14px", borderRadius: 12, color: P.loss, fontSize: 13 }}>Delete</button>
+                          <button onClick={() => setConfirmDelete(t.id)} className="jpress" style={{ ...glass({ border: "1px solid rgba(252,68,34,0.35)" }), padding: "8px 14px", borderRadius: 11, color: P.loss, fontSize: 13, fontFamily: SANS }}>Delete</button>
                         )}
                       </div>
                     </div>
@@ -1019,41 +1256,41 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
 
   return (
     <React.Fragment>
-    <div className="scrollpane fade-anim" style={{ paddingBottom: 130, fontFamily: SANS }}>
+    <div className="scrollpane" style={{ paddingBottom: 130, fontFamily: SANS }}>
       <div style={{ padding: "max(24px, env(safe-area-inset-top)) 16px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <button onClick={onBack} className="jpress" style={{ ...glass(), width: 40, height: 40, borderRadius: 14, color: P.text, fontSize: 18 }}>←</button>
+        <div className="rise" style={{ "--i": 0, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <button onClick={onBack} className="jpress" style={{ ...glass(), width: 40, height: 40, borderRadius: 13, color: P.text, fontSize: 18 }}>←</button>
           <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => fileRef.current && fileRef.current.click()} className="jpress" style={{ ...glass(), padding: "8px 14px", borderRadius: 12, color: P.dim, fontSize: 13 }}>Import</button>
-            <button onClick={() => setExportOpen(true)} className="jpress" style={{ ...glass(), padding: "8px 14px", borderRadius: 12, color: P.dim, fontSize: 13 }}>Export</button>
+            <button onClick={() => fileRef.current && fileRef.current.click()} className="jpress" style={{ ...glass(), padding: "8px 14px", borderRadius: 11, color: P.dim, fontSize: 13, fontFamily: SANS }}>Import</button>
+            <button onClick={() => setExportOpen(true)} className="jpress" style={{ ...glass(), padding: "8px 14px", borderRadius: 11, color: P.dim, fontSize: 13, fontFamily: SANS }}>Export</button>
             <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={onImportFile} style={{ display: "none" }} />
           </div>
         </div>
-        <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase", color: P.faint, letterSpacing: "0.16em" }}>
-            {fmtMoney(acc.balance)} $ · MAX {acc.maxRisk}$/TRADE · PRE-STATE ≥ {MIN_PRESTATE}
-          </div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, background: GRAD_TITLE, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>{acc.name}</h1>
+        <div className="rise" style={{ "--i": 1, marginTop: 16 }}>
+          <TitleBlock
+            eyebrow={`${fmtMoney(acc.balance)} $ · max ${acc.maxRisk}$/trade · pre-state ≥ ${MIN_PRESTATE}`}
+            title={acc.name} />
         </div>
         {importMsg && (
-          <div style={{ ...glass(), marginTop: 12, borderRadius: 16, padding: "12px 16px", fontSize: 13, color: P.dim, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ ...glass(), marginTop: 12, borderRadius: 16, padding: "12px 16px", fontSize: 13, color: P.dim, display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: SANS }}>
             <span>{importMsg}</span>
             <button onClick={() => setImportMsg("")} style={{ color: P.faint }}>✕</button>
           </div>
         )}
         {saveError && (
-          <div style={{ ...glass({ border: "1px solid rgba(252,68,34,0.4)" }), marginTop: 12, borderRadius: 16, padding: "12px 16px", fontSize: 13, color: P.loss }}>
+          <div style={{ ...glass({ border: "1px solid rgba(252,68,34,0.4)" }), marginTop: 12, borderRadius: 16, padding: "12px 16px", fontSize: 13, color: P.loss, fontFamily: SANS }}>
             Could not save — export your data as backup.
           </div>
         )}
       </div>
 
-      <div style={{ padding: "0 16px", marginBottom: 16 }}>
-        <div style={{ ...glass(), borderRadius: 18, padding: 4, display: "flex" }}>
+      <div className="rise" style={{ "--i": 2, padding: "0 16px", marginBottom: 16 }}>
+        <div style={{ ...glass(), borderRadius: 16, padding: 4, display: "flex" }}>
           {[["journal", "Journal"], ["insights", "Insights"]].map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)} className="jpress"
-              style={{ flex: 1, padding: "10px 0", borderRadius: 14, fontSize: 14, fontWeight: 600, fontFamily: SANS,
-                background: tab === k ? GRAD_PRIMARY : "transparent", color: tab === k ? "#fff" : P.dim }}>
+              style={{ flex: 1, padding: "10px 0", borderRadius: 13, fontSize: 14, fontWeight: 600, fontFamily: SANS,
+                background: tab === k ? GRAD_PRIMARY : "transparent", color: tab === k ? "#fff" : P.dim,
+                boxShadow: tab === k ? "0 4px 14px rgba(104,116,232,0.3)" : "none" }}>
               {label}
             </button>
           ))}
@@ -1066,9 +1303,10 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
     </div>
 
       {acc.status !== "closed" && !wizard && !exportOpen && (
-        <button onClick={startNew} className="jpress fab-glow" aria-label="Add trade"
+        <button onClick={startNew} className="jpress" aria-label="Add trade"
           style={{ position: "fixed", bottom: "max(24px, env(safe-area-inset-bottom))", right: 20, width: 60, height: 60, borderRadius: "50%",
-            fontSize: 30, fontWeight: 300, background: GRAD_FLAME, color: "#241F2C", zIndex: 10 }}>
+            fontSize: 30, fontWeight: 300, background: GRAD_FLAME, color: "#241F2C", zIndex: 10,
+            boxShadow: "0 10px 28px rgba(255,235,59,0.26), inset 0 1px 0 rgba(255,255,255,0.45)" }}>
           +
         </button>
       )}
