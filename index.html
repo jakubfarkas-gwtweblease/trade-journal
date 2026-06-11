@@ -14,8 +14,18 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { background:#1B1722; min-height:100%; }
-  body { overscroll-behavior-y: none; }
+  html, body { background:#1B1722; height:100%; overflow:hidden; }
+  body { overscroll-behavior-y: none; position: fixed; inset: 0; width: 100%; }
+  #root { position: absolute; inset: 0; overflow: hidden; }
+  .scrollpane { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  @keyframes slideUp { from { transform: translateY(36px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pop { 0% { transform: scale(0.85); } 60% { transform: scale(1.07); } 100% { transform: scale(1); } }
+  @keyframes glowPulse { 0%,100% { box-shadow: 0 10px 32px rgba(255,235,59,0.28), inset 0 1px 0 rgba(255,255,255,0.5); } 50% { box-shadow: 0 12px 44px rgba(255,235,59,0.46), inset 0 1px 0 rgba(255,255,255,0.5); } }
+  .slide-anim { animation: slideUp 280ms cubic-bezier(.2,.8,.2,1); }
+  .fade-anim { animation: fadeIn 220ms ease; }
+  .pop-anim { animation: pop 240ms ease; }
+  .fab-glow { animation: glowPulse 3.2s ease-in-out infinite; }
   .jchip { transition: transform 120ms ease, box-shadow 150ms ease, background 150ms ease, color 150ms ease; }
   .jchip:active { transform: scale(0.94); }
   .jpress { transition: transform 120ms ease, opacity 150ms ease; }
@@ -23,7 +33,7 @@
   .jfocus:focus { border-color: rgba(104,116,232,0.6) !important; box-shadow: 0 0 0 3px rgba(104,116,232,0.18); }
   .hscroll { overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling: touch; scrollbar-width:none; }
   .hscroll::-webkit-scrollbar { display:none; }
-  @media (prefers-reduced-motion: reduce) { .jchip, .jpress { transition: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .jchip, .jpress { transition: none !important; } .slide-anim, .fade-anim, .pop-anim, .fab-glow { animation: none !important; } }
   input, textarea, button { font: inherit; }
   button { cursor:pointer; border:none; background:none; }
   input[type="date"] {
@@ -367,7 +377,7 @@ const AccountModal = ({ initial, onSave, onCancel }) => {
   const ok = f.name.trim() && f.maxRisk;
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(27,23,34,0.82)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}>
-      <div style={{ ...glass({ background: "rgba(36,31,44,0.92)" }), borderRadius: "28px 28px 0 0", padding: "24px 20px 36px", fontFamily: SANS }}>
+      <div className="slide-anim" style={{ ...glass({ background: "rgba(36,31,44,0.92)" }), borderRadius: "28px 28px 0 0", padding: "24px 20px 36px", fontFamily: SANS }}>
         <h2 style={{ color: P.text, fontSize: 20, fontWeight: 700, marginBottom: 20 }}>{initial ? "Edit account" : "New account"}</h2>
         <Field label="Name"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="FTMO 100K 1-step" /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -404,7 +414,7 @@ const App = () => {
 
   /* ----- home ----- */
   const renderHome = () => (
-    <div style={{ minHeight: "100vh", paddingBottom: 110, fontFamily: SANS }}>
+    <div className="scrollpane fade-anim" style={{ paddingBottom: 130, fontFamily: SANS }}>
       <div style={{ padding: "max(24px, env(safe-area-inset-top)) 16px 16px" }}>
         <div style={{ fontSize: 11, textTransform: "uppercase", color: P.faint, letterSpacing: "0.16em" }}>STATE FIRST · PRE-STATE ≥ {MIN_PRESTATE} · A++ ONLY</div>
         <h1 style={{ fontSize: 30, fontWeight: 800, background: GRAD_TITLE, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent" }}>Trade Journal</h1>
@@ -660,14 +670,14 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
     );
 
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "rgba(27,23,34,0.86)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}>
+      <div className="fade-anim" style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "rgba(27,23,34,0.86)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "max(16px, env(safe-area-inset-top)) 20px 16px" }}>
           <button onClick={() => setWizard(null)} style={{ color: P.dim, fontFamily: SANS, fontSize: 14 }}>Cancel</button>
           {step >= 0 ? <StepDots /> : <div />}
           <div style={{ fontSize: 13, color: P.faint, fontFamily: MONO }}>{step >= 0 ? `${step + 1}/${totalSteps}` : ""}</div>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px", fontFamily: SANS }}>
+        <div key={step} className="fade-anim" style={{ flex: 1, overflowY: "auto", padding: "4px 20px 20px", fontFamily: SANS }}>
           {/* STEP -1 — execution choice */}
           {step === -1 && (
             <div style={{ paddingTop: 40 }}>
@@ -712,7 +722,7 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                   </Chip>
                 ))}
               </Field>
-              <div style={{ ...glass({ border: `1.5px dashed ${vColor}55`, boxShadow: `inset 0 0 40px ${vColor}0F` }), borderRadius: 24, padding: "28px 0", textAlign: "center", marginBottom: 8 }}>
+              <div key={verdict.v} className="pop-anim" style={{ ...glass({ border: `1.5px dashed ${vColor}55`, boxShadow: `inset 0 0 40px ${vColor}0F` }), borderRadius: 24, padding: "28px 0", textAlign: "center", marginBottom: 8 }}>
                 <div style={{ fontSize: 36, fontWeight: 800, letterSpacing: "0.15em", fontFamily: MONO, color: vColor, textShadow: `0 0 24px ${vColor}55` }}>{verdict.v}</div>
                 <div style={{ fontSize: 12, marginTop: 8, color: P.dim }}>
                   {verdict.why ? verdict.why : `${trade.confluenceChips.length}/${CONFLUENCES.length} confluences · pre-state ${trade.preState ?? "—"}`}
@@ -842,7 +852,7 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
 
   /* ---------- export panel ---------- */
   const renderExport = () => (
-    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "rgba(27,23,34,0.88)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}>
+    <div className="fade-anim" style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", flexDirection: "column", background: "rgba(27,23,34,0.88)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "max(16px, env(safe-area-inset-top)) 20px 16px" }}>
         <button onClick={() => setExportOpen(false)} style={{ color: P.dim, fontFamily: SANS, fontSize: 14 }}>Close</button>
         <div style={{ color: P.text, fontWeight: 600, fontFamily: SANS, fontSize: 14 }}>Export · {acc.name}</div>
@@ -913,6 +923,9 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
 
       {/* filters */}
       <div className="hscroll" style={{ padding: "0 16px", marginBottom: 4 }}>
+        {(fOutcome !== "All" || fExec !== "All" || fPair !== "All" || fSession !== "All") && (
+          <Chip small active tone="loss" onClick={() => { setFOutcome("All"); setFExec("All"); setFPair("All"); setFSession("All"); }}>✕ Reset</Chip>
+        )}
         {["All", "Wins", "Losses", "Open", "Flags"].map((f) => (
           <Chip key={f} small active={fOutcome === f} tone="gold" onClick={() => setFOutcome(f)}>{f}</Chip>
         ))}
@@ -958,7 +971,7 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                     <div style={{ textAlign: "right" }}><ResultPill t={t} /></div>
                   </div>
                   {open && (
-                    <div style={{ padding: "0 12px 16px", fontSize: 13, color: P.dim, fontFamily: SANS }}>
+                    <div className="fade-anim" style={{ padding: "0 12px 16px", fontSize: 13, color: P.dim, fontFamily: SANS }}>
                       {!t.executed && <div style={{ marginBottom: 4, color: P.gold }}>Skipped setup — the rep was the trade.</div>}
                       {t.setup && <div style={{ marginBottom: 4 }}><span style={{ color: P.faint }}>Setup: </span>{t.setup}</div>}
                       {t.session && <div style={{ marginBottom: 4 }}><span style={{ color: P.faint }}>Session: </span>{t.session}{t.timeOfEntry ? ` · ${t.timeOfEntry}` : ""}{t.trend ? ` · trend: ${t.trend}` : ""}</div>}
@@ -1005,7 +1018,8 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
   );
 
   return (
-    <div style={{ minHeight: "100vh", paddingBottom: 110, fontFamily: SANS }}>
+    <React.Fragment>
+    <div className="scrollpane fade-anim" style={{ paddingBottom: 130, fontFamily: SANS }}>
       <div style={{ padding: "max(24px, env(safe-area-inset-top)) 16px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <button onClick={onBack} className="jpress" style={{ ...glass(), width: 40, height: 40, borderRadius: 14, color: P.text, fontSize: 18 }}>←</button>
@@ -1046,20 +1060,22 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
         </div>
       </div>
 
-      {tab === "insights" ? renderInsights() : renderJournal()}
+      <div key={tab} className="fade-anim">
+        {tab === "insights" ? renderInsights() : renderJournal()}
+      </div>
+    </div>
 
-      {acc.status !== "closed" && (
-        <button onClick={startNew} className="jpress" aria-label="Add trade"
+      {acc.status !== "closed" && !wizard && !exportOpen && (
+        <button onClick={startNew} className="jpress fab-glow" aria-label="Add trade"
           style={{ position: "fixed", bottom: "max(24px, env(safe-area-inset-bottom))", right: 20, width: 60, height: 60, borderRadius: "50%",
-            fontSize: 30, fontWeight: 300, background: GRAD_FLAME, color: "#241F2C",
-            boxShadow: "0 10px 32px rgba(255,235,59,0.30), inset 0 1px 0 rgba(255,255,255,0.5)" }}>
+            fontSize: 30, fontWeight: 300, background: GRAD_FLAME, color: "#241F2C", zIndex: 10 }}>
           +
         </button>
       )}
 
       {wizard && renderWizard()}
       {exportOpen && renderExport()}
-    </div>
+    </React.Fragment>
   );
 };
 
