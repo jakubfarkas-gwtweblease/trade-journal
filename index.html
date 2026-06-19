@@ -102,7 +102,7 @@ const SLEEP = ["<5", "5", "6", "7", "8+"];
 const FELT = ["Calm & sharp", "Pleasant", "Neutral", "Tense", "Urgency", "Fearful"];
 const CLOSED = ["SL hit", "TP hit", "PA reversal read", "Manual profit", "Moved SL", "News"];
 const STORAGE_KEY = "trade-journal-v1"; // unchanged — data carries over
-const APP_VERSION = "2026-06-18.1"; // build — bump this on every GitHub update
+const APP_VERSION = "2026-06-19.1"; // build — bump this on every GitHub update
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -1058,6 +1058,9 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                 {[["Win","win"],["Loss","loss"],["Neither","gold"]].map(([r, tn]) => (
                   <Chip key={r} active={trade.hypo === r} tone={tn} onClick={() => upd({ hypo: trade.hypo === r ? "" : r })}>{r}</Chip>
                 ))}
+              </Field>
+              <Field label="Screenshot after (how it played out)">
+                <Input value={trade.screenshotAfter} onChange={(e) => upd({ screenshotAfter: e.target.value })} placeholder="https://…" />
               </Field>
               <Field label="Lesson">
                 <TextArea rows={3} value={trade.lesson} onChange={(e) => upd({ lesson: e.target.value })} placeholder="What does skipping this teach you…" />
