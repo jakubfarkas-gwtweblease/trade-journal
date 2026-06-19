@@ -102,6 +102,7 @@ const SLEEP = ["<5", "5", "6", "7", "8+"];
 const FELT = ["Calm & sharp", "Pleasant", "Neutral", "Tense", "Urgency", "Fearful"];
 const CLOSED = ["SL hit", "TP hit", "PA reversal read", "Manual profit", "Moved SL", "News"];
 const STORAGE_KEY = "trade-journal-v1"; // unchanged — data carries over
+const APP_VERSION = "2026-06-18.1"; // build — bump this on every GitHub update
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -117,7 +118,7 @@ const emptyTrade = (acc) => ({
   entry: "", sl: "", tp: "", risk: acc ? String(acc.maxRisk) : "",
   sleep: "", physical: "", preState: null, preStateNote: "",
   screenshotBefore: "", feltDuring: "", screenshotAfter: "",
-  outcome: "Open", rulesFollowed: null, closedDue: "", closedDueNote: "",
+  outcome: "Open", pnl: "", hypo: "", rulesFollowed: null, closedDue: "", closedDueNote: "",
   postState: null, postStateNote: "", lesson: "",
 });
 
@@ -155,7 +156,7 @@ const saveData = (d) => {
 };
 
 /* ---------- csv ---------- */
-const CSV_COLS = ["Date","Pair","Session","Time of entry","Setup","Confluences checklist","Confluences detail","Trend alignment","Direction","Entry","SL","TP","Risk $","Hours slept","Physical state","Pre-state 1-5","Screenshot before","Felt during","Screenshot after","Outcome","Executed","Rules followed Y/N","Closed due","Post-state 1-5","Lesson"];
+const CSV_COLS = ["Date","Pair","Session","Time of entry","Setup","Confluences checklist","Confluences detail","Trend alignment","Direction","Entry","SL","TP","Risk $","Hours slept","Physical state","Pre-state 1-5","Screenshot before","Felt during","Screenshot after","Outcome","Executed","Rules followed Y/N","Closed due","Post-state 1-5","Lesson","P&L $","Would-be"];
 
 const buildCSV = (trades) => {
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -167,7 +168,7 @@ const buildCSV = (trades) => {
      t.executed ? t.outcome : "Skipped", t.executed ? "Y" : "N",
      t.rulesFollowed === true ? "Y" : t.rulesFollowed === false ? "N" : "",
      [t.closedDue, t.closedDueNote].filter(Boolean).join(" — "),
-     t.postState ?? t.postStateNote, t.lesson].map(esc).join(";"));
+     t.postState ?? t.postStateNote, t.lesson, t.pnl, t.hypo].map(esc).join(";"));
   return [CSV_COLS.map(esc).join(";"), ...rows].join("\n");
 };
 
@@ -212,6 +213,8 @@ const importRows = (rows) => {
         closedDueNote: (r[22]||"").trim(),
         postState: isNaN(post) ? null : post, postStateNote: (r[23]||"").trim(),
         lesson: (r[24]||"").trim(),
+        pnl: num(r[25]),
+        hypo: (() => { const h = (r[26]||"").trim().toLowerCase(); return h.startsWith("w") ? "Win" : h.startsWith("l") ? "Loss" : h.startsWith("n") ? "Neither" : ""; })(),
       });
     } else {
       const pair = (r[1]||"").trim();
@@ -456,8 +459,8 @@ const EdgeBar = ({ label, wr, n, color, i = 0 }) => (
 );
 
 /* cumulative chart with gradient stroke */
-const CumulativeLine = ({ points }) => {
-  if (points.length < 2) return <div style={{ color: P.faint, fontSize: 13, fontFamily: SANS }}>Need at least 2 closed trades.</div>;
+const CumulativeLine = ({ points, unit }) => {
+  if (points.length < 2) return <div style={{ color: P.faint, fontSize: 13, fontFamily: SANS }}>{unit === "$" ? "Zapíš výsledok $ aspoň pri 2 obchodoch." : "Need at least 2 closed trades."}</div>;
   const W = 320, H = 120, pad = 8;
   const ys = points.map((p) => p.score);
   const minY = Math.min(0, ...ys), maxY = Math.max(0, ...ys);
@@ -466,6 +469,7 @@ const CumulativeLine = ({ points }) => {
   const Y = (v) => H - pad - ((v - minY) / span) * (H - 2 * pad);
   const path = points.map((p, i) => `${X(i)},${Y(p.score)}`).join(" ");
   const last = points[points.length - 1];
+  const fmt = (v) => unit === "$" ? `${v > 0 ? "+" : ""}${v.toLocaleString("sk-SK")} $` : `${v > 0 ? "+" : ""}${v}`;
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
@@ -484,7 +488,7 @@ const CumulativeLine = ({ points }) => {
       </svg>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, fontFamily: MONO, color: P.faint, marginTop: 4 }}>
         <span>{points[0].d}</span>
-        <span style={{ color: last.score >= 0 ? P.win : P.loss, fontWeight: 700 }}>now: {last.score > 0 ? "+" : ""}{last.score}</span>
+        <span style={{ color: last.score >= 0 ? P.win : P.loss, fontWeight: 700 }}>now: {fmt(last.score)}</span>
         <span>{last.d}</span>
       </div>
     </div>
@@ -533,6 +537,26 @@ const App = () => {
   const [currentId, setCurrentId] = useState(null);
   const [accModal, setAccModal] = useState(null);
   const [confirmAcc, setConfirmAcc] = useState(null);
+  const [upState, setUpState] = useState("idle"); // idle | checking | current | available | error
+  const [upLatest, setUpLatest] = useState("");
+
+  const checkUpdate = async () => {
+    setUpState("checking");
+    try {
+      const base = location.pathname.split("?")[0];
+      const res = await fetch(base + "?_=" + Date.now(), { cache: "no-store" });
+      const txt = await res.text();
+      const m = txt.match(/APP_VERSION\s*=\s*["']([^"']+)["']/);
+      const latest = m ? m[1] : null;
+      if (!latest) { setUpState("error"); return; }
+      setUpLatest(latest);
+      setUpState(latest === APP_VERSION ? "current" : "available");
+    } catch (e) { setUpState("error"); }
+  };
+  const doUpdate = () => {
+    const base = location.pathname.split("?")[0];
+    location.href = base + "?v=" + Date.now();
+  };
 
   const persist = (next) => { setData(next); setSaveError(!saveData(next)); };
   const updateAccount = (id, patch) =>
@@ -669,6 +693,26 @@ const App = () => {
           style={{ "--i": Math.min(data.accounts.length + 2, 9), ...glass(), width: "100%", borderRadius: 22, padding: "16px 0", color: P.text, fontSize: 15, fontWeight: 600, marginTop: 2, fontFamily: SANS, border: `1.5px dashed ${P.border}` }}>
           + Add trading account
         </button>
+
+        {/* version + update */}
+        <div style={{ marginTop: 22, textAlign: "center", fontFamily: SANS }}>
+          {upState === "available" ? (
+            <button onClick={doUpdate} className="jpress"
+              style={{ background: GRAD_PRIMARY, color: "#fff", fontSize: 14, fontWeight: 700, padding: "12px 22px", borderRadius: 14, boxShadow: "0 6px 18px rgba(104,116,232,0.35)" }}>
+              Update now → v{upLatest}
+            </button>
+          ) : (
+            <button onClick={checkUpdate} className="jpress"
+              style={{ ...glass(), color: P.dim, fontSize: 13, fontWeight: 500, padding: "10px 18px", borderRadius: 12 }}>
+              {upState === "checking" ? "Checking…" : "Check for updates"}
+            </button>
+          )}
+          <div style={{ fontSize: 11, color: P.faint, fontFamily: MONO, marginTop: 9, letterSpacing: "0.04em" }}>
+            {upState === "current" ? "✓ You're on the newest version · " :
+             upState === "error" ? "Couldn't check — are you online? · " : ""}
+            v{APP_VERSION}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -981,6 +1025,22 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                   <Field label="More on the close (optional)">
                     <TextArea rows={2} value={trade.closedDueNote} onChange={(e) => upd({ closedDueNote: e.target.value })} placeholder="What you saw on the chart…" />
                   </Field>
+                  <Field label="Výsledok $ · presný zisk / strata">
+                    <div>
+                      {trade.outcome === "Win" && trade.risk && (
+                        <Chip active={trade.pnl === String(trade.risk)} tone="win" onClick={() => upd({ pnl: String(trade.risk) })}>+{trade.risk}$</Chip>
+                      )}
+                      {trade.outcome === "Loss" && trade.risk && (
+                        <Chip active={trade.pnl === String(-Math.abs(parseFloat(trade.risk)))} tone="loss" onClick={() => upd({ pnl: String(-Math.abs(parseFloat(trade.risk))) })}>−{trade.risk}$</Chip>
+                      )}
+                      {trade.outcome === "BE" && (
+                        <Chip active={trade.pnl === "0"} onClick={() => upd({ pnl: "0" })}>0$</Chip>
+                      )}
+                      <input value={trade.pnl} onChange={(e) => upd({ pnl: e.target.value.replace(",", ".") })} placeholder="napr. 480 alebo -240" inputMode="text"
+                        className="jfocus"
+                        style={{ ...glass(), display: "inline-block", padding: "6px 12px", borderRadius: 999, fontSize: 14, marginBottom: 8, color: parseFloat(trade.pnl) < 0 ? P.loss : parseFloat(trade.pnl) > 0 ? P.win : P.text, fontFamily: MONO, outline: "none", width: 150 }} />
+                    </div>
+                  </Field>
                   <Field label="Post-state (1-5)"><ScaleChips value={trade.postState} onChange={(n) => upd({ postState: n })} /></Field>
                 </React.Fragment>
               )}
@@ -993,6 +1053,11 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
               <p style={{ color: P.dim, fontSize: 14, marginBottom: 20 }}>Why didn't you take it? That answer is the value of this entry.</p>
               <Field label="Why skipped">
                 <TextArea rows={3} value={trade.closedDueNote} onChange={(e) => upd({ closedDueNote: e.target.value })} placeholder="Keeping my word / state below 4 / setup incomplete / …" />
+              </Field>
+              <Field label="Would it have been">
+                {[["Win","win"],["Loss","loss"],["Neither","gold"]].map(([r, tn]) => (
+                  <Chip key={r} active={trade.hypo === r} tone={tn} onClick={() => upd({ hypo: trade.hypo === r ? "" : r })}>{r}</Chip>
+                ))}
               </Field>
               <Field label="Lesson">
                 <TextArea rows={3} value={trade.lesson} onChange={(e) => upd({ lesson: e.target.value })} placeholder="What does skipping this teach you…" />
@@ -1131,7 +1196,7 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
   );
 
   /* ---------- journal ---------- */
-  const GRID = "2.5rem 1fr 1.3rem 2rem 2.3rem 3.1rem";
+  const GRID = "2.4rem 1fr 1.9rem 2rem 3rem 2.9rem";
   const renderJournal = () => (
     <div>
       {/* edge card with ring */}
@@ -1185,7 +1250,7 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
         ) : (
           <div className="rise" style={{ "--i": 3, ...glass(), borderRadius: 22, overflow: "hidden" }}>
             <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "10px 10px", fontSize: 10, textTransform: "uppercase", color: P.faint, letterSpacing: "0.06em", background: P.glassHi, fontFamily: SANS, alignItems: "center" }}>
-              <div>Date</div><div>Pair</div><div>D</div><div style={{ textAlign: "center" }}>Pre</div><div style={{ textAlign: "right" }}>Risk</div><div style={{ textAlign: "right" }}>Res</div>
+              <div>Date</div><div>Pair</div><div style={{ textAlign: "center" }}>Pre</div><div style={{ textAlign: "right" }}>Risk</div><div style={{ textAlign: "right" }}>P&L $</div><div style={{ textAlign: "right" }}>Res</div>
             </div>
             {visible.map((t, idx) => {
               const open = expanded === t.id;
@@ -1197,18 +1262,31 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                     style={{ display: "grid", gridTemplateColumns: GRID, padding: "11px 10px", alignItems: "center", cursor: "pointer" }}>
                     <div style={{ color: P.dim, fontFamily: MONO, fontSize: 12 }}>{shortDate(t.date)}</div>
                     <div style={{ color: P.text, fontFamily: MONO, fontWeight: 600, fontSize: 14, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", paddingRight: 4 }}>
+                      <span style={{ color: t.direction === "Long" ? P.win : t.direction === "Short" ? P.loss : P.faint, marginRight: 4 }}>
+                        {t.direction === "Long" ? "▲" : t.direction === "Short" ? "▼" : ""}
+                      </span>
                       {t.pair || "—"}{flag && <span style={{ color: P.gold }}> ⚑</span>}
-                    </div>
-                    <div style={{ fontSize: 14, color: t.direction === "Long" ? P.win : t.direction === "Short" ? P.loss : P.faint }}>
-                      {t.direction === "Long" ? "▲" : t.direction === "Short" ? "▼" : ""}
                     </div>
                     <div style={{ display: "flex", justifyContent: "center" }}><PreRing ps={t.preState} /></div>
                     <div style={{ textAlign: "right", fontFamily: MONO, fontSize: 12, color: parseFloat(t.risk) > parseFloat(acc.maxRisk) ? P.loss : P.dim }}>{t.executed ? (t.risk || "·") : "·"}</div>
+                    <div style={{ textAlign: "right", fontFamily: MONO, fontSize: 12.5, fontWeight: 700,
+                      color: !t.executed ? (t.hypo === "Win" ? P.win : t.hypo === "Loss" ? P.loss : P.faint)
+                        : t.pnl === "" || t.pnl == null || isNaN(parseFloat(t.pnl)) ? P.faint : parseFloat(t.pnl) < 0 ? P.loss : parseFloat(t.pnl) > 0 ? P.win : P.dim }}>
+                      {!t.executed
+                        ? (t.hypo === "Win" ? "W?" : t.hypo === "Loss" ? "L?" : "·")
+                        : (t.pnl !== "" && t.pnl != null && !isNaN(parseFloat(t.pnl)) ? `${parseFloat(t.pnl) > 0 ? "+" : ""}${parseFloat(t.pnl)}` : "·")}
+                    </div>
                     <div style={{ textAlign: "right" }}><ResultPill t={t} /></div>
                   </div>
                   {open && (
                     <div className="fade-anim" style={{ padding: "0 12px 16px", fontSize: 13, color: P.dim, fontFamily: SANS }}>
                       {!t.executed && <div style={{ marginBottom: 4, color: "#9BA3B8" }}>Skipped setup — the rep was the trade.</div>}
+                      {!t.executed && t.hypo && (
+                        <div style={{ marginBottom: 4, fontFamily: SANS, fontWeight: 600,
+                          color: t.hypo === "Win" ? P.win : t.hypo === "Loss" ? P.loss : P.gold }}>
+                          <span style={{ color: P.faint, fontWeight: 400 }}>Would have been: </span>{t.hypo}
+                        </div>
+                      )}
                       {flag && <div style={{ marginBottom: 4, color: P.gold }}>⚑ Flagged: {reasons.join(" · ")}</div>}
                       {t.setup && <div style={{ marginBottom: 4 }}><span style={{ color: P.faint }}>Setup: </span>{t.setup}</div>}
                       {t.session && <div style={{ marginBottom: 4 }}><span style={{ color: P.faint }}>Session: </span>{t.session}{t.timeOfEntry ? ` · ${t.timeOfEntry}` : ""}{t.trend ? ` · trend: ${t.trend}` : ""}</div>}
@@ -1220,6 +1298,12 @@ const AccountView = ({ acc, onBack, onUpdate, saveError }) => {
                           <span style={{ color: P.faint, fontFamily: SANS }}> / SL </span>{t.sl || "—"}
                           <span style={{ color: P.faint, fontFamily: SANS }}> / TP </span>{t.tp || "—"}
                           <span style={{ color: P.faint, fontFamily: SANS }}> / risk </span>{t.risk || "—"}$
+                        </div>
+                      )}
+                      {t.executed && t.pnl !== "" && t.pnl != null && !isNaN(parseFloat(t.pnl)) && (
+                        <div style={{ marginBottom: 4, fontFamily: MONO, fontSize: 14, fontWeight: 700, color: parseFloat(t.pnl) < 0 ? P.loss : parseFloat(t.pnl) > 0 ? P.win : P.dim }}>
+                          <span style={{ color: P.faint, fontFamily: SANS, fontWeight: 400, fontSize: 13 }}>Výsledok: </span>
+                          {parseFloat(t.pnl) > 0 ? "+" : ""}{parseFloat(t.pnl)} $
                         </div>
                       )}
                       {(t.sleep || t.physical) && <div style={{ marginBottom: 4 }}><span style={{ color: P.faint }}>Body: </span>{t.sleep ? `${t.sleep}h sleep` : ""}{t.sleep && t.physical ? " · " : ""}{t.physical}</div>}
