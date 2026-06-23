@@ -102,7 +102,59 @@ const SLEEP = ["<5", "5", "6", "7", "8+"];
 const FELT = ["Calm & sharp", "Pleasant", "Neutral", "Tense", "Urgency", "Fearful"];
 const CLOSED = ["SL hit", "TP hit", "PA reversal read", "Manual profit", "Moved SL", "News"];
 const STORAGE_KEY = "trade-journal-v1"; // unchanged — data carries over
-const APP_VERSION = "2026-06-19.1"; // build — bump this on every GitHub update
+const APP_VERSION = "2026-06-19.2"; // build — bump this on every GitHub update
+
+/* ---------- trading rules (hardcoded reference) ---------- */
+const CORE_PRINCIPLE = "Emotional discipline and mindset control matter more than strategy. Process over outcome, always. Most traders fail not from bad strategy but from letting fear, greed, and impatience drive decisions.";
+
+const RULE_GROUPS = [
+  {
+    tag: "GATE", label: "The gate", sub: "Before every entry — blocking",
+    rules: [
+      { t: "State first", d: "If I feel bad, unstable, off, or low motivation: no trade. Non-negotiable." },
+      { t: "Pre-state ≥ 4 / 5", d: "3.5 ok only if calm, rules-on, and A++. State matters more than the number." },
+      { t: "A++ setups only", d: "Nothing else yet. No B-minus, no \"too good not to get in,\" no scarcity entries." },
+      { t: "Wait for the trigger", d: "Engulfing / BOS on entry TF. Don't anticipate." },
+      { t: "Pre-trade emotional check", d: "Seeing a setup or looking for one? Calm or urgency/FOMO? Would I enter the same with someone watching? Any wrong answer → wait 10 min → recheck → still off → skip." },
+      { t: "Write it up first", d: "No entry without: pair + direction, exact entry/SL/TP/RR, 3+ confluences, invalidation, plan B." },
+    ],
+  },
+  {
+    tag: "STOP", label: "Hard stops", sub: "Absolute walls — no exceptions",
+    rules: [
+      { t: "Daily loss limit", d: "After 1 rule-break or bad-state loss: platform OFF until next morning. No \"just checking if it came back.\" Tilt comes in clusters — the first one is the signal to stop." },
+      { t: "Max 1 trade per day", d: "Exception: a 2nd only if the first is at break-even or in profit AND the second is a clear A++." },
+      { t: "Weekly loss cap", d: "Scales with size (e.g. $500 risk → $1,000 max week). Hard wall." },
+      { t: "No night entries", d: "Trade the PRE-LONDON window. No holding through thin liquidity, overnight, or bank holidays." },
+    ],
+  },
+  {
+    tag: "RISK", label: "Risk & execution",
+    rules: [
+      { t: "Scaling plan", d: "Warm-up $100 → after 5 clean trades $250 → after a consistent phase $400-500. Max $500 on this account. No \"extra A++ so I'll go higher.\"" },
+      { t: "SL is fixed, size is the variable", d: "Always breathing room past the level that invalidates. If lot doesn't fit, reduce the lot — never tighten the SL. Set once, no fear-moving." },
+      { t: "Pairs", d: "GBP pairs are the core edge (GBPUSD best, GBPAUD). XAU only on A++ + clean + good state + zero news, else skip." },
+      { t: "Legit exits only", d: "TP hit · price action clearly bending · strong rejection at major S/R. Never close from comfort or \"don't want to give it back.\"" },
+    ],
+  },
+  {
+    tag: "REVIEW", label: "Review rhythm",
+    rules: [
+      { t: "The skip is a win", d: "Log every skip like a trade (setup, why passed, would-be outcome). Grade process = 5. My edge is selection, not volume." },
+      { t: "Weekly review · Friday", d: "Trades this week. Rules broken. Hardest rule to follow. Plan for next week." },
+      { t: "Monthly upgrade · first Monday", d: "Check scaling conditions. Met → increase. Not met → stay." },
+    ],
+  },
+  {
+    tag: "PRINCIPLE", label: "Principles",
+    rules: [
+      { t: "I am an asymmetry trader", d: "~48% win rate and still green: winners run multi-R, losses capped at 1R. Protecting the big winners is the whole system. Measure on holding winners and following rules, not win rate." },
+      { t: "Detachment from money", d: "Trading is skill and process, not an iPhone, Thailand, or \"changing my life.\" Acknowledge the thoughts, don't let them decide." },
+      { t: "Stick to the plan", d: "Change it only if price action clearly says so. Never for P&L reasons. The low-emotion experiment is closed — the answer was no." },
+    ],
+  },
+];
+const RULE_TONE = { GATE: "#6874E8", STOP: "#FC4422", RISK: "#FFEB3B", REVIEW: "#9BA3B8", PRINCIPLE: "#6874E8" };
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -537,6 +589,8 @@ const App = () => {
   const [currentId, setCurrentId] = useState(null);
   const [accModal, setAccModal] = useState(null);
   const [confirmAcc, setConfirmAcc] = useState(null);
+  const [homeView, setHomeView] = useState("accounts"); // accounts | rules
+  const [openRule, setOpenRule] = useState(null);
   const [upState, setUpState] = useState("idle"); // idle | checking | current | available | error
   const [upLatest, setUpLatest] = useState("");
 
@@ -593,14 +647,34 @@ const App = () => {
           <div style={{ fontSize: 13, color: P.dim, marginTop: 14 }}>State first. The chart comes second.</div>
         </div>
 
+        {/* segmented toggle */}
+        <div className="rise" style={{ "--i": 1, ...glass(), borderRadius: 16, padding: 4, display: "flex", marginTop: 18 }}>
+          {[["accounts", "Accounts"], ["rules", "My rules"]].map(([k, label]) => (
+            <button key={k} onClick={() => { setHomeView(k); setOpenRule(null); }} className="jpress"
+              style={{ flex: 1, padding: "10px 0", borderRadius: 13, fontSize: 14, fontWeight: 600, fontFamily: SANS,
+                background: homeView === k ? GRAD_PRIMARY : "transparent", color: homeView === k ? "#fff" : P.dim,
+                boxShadow: homeView === k ? "0 4px 14px rgba(104,116,232,0.3)" : "none" }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {homeView === "rules" ? renderRules() : renderAccounts()}
+    </div>
+  );
+
+  const renderAccounts = () => (
+    <React.Fragment>
+      <div style={{ padding: "16px 18px 0" }}>
         {/* portfolio strip */}
-        <div className="rise" style={{ "--i": 1, ...glass(), borderRadius: 20, marginTop: 18, padding: "14px 16px", display: "flex", justifyContent: "space-between" }}>
+        <div className="rise" style={{ "--i": 0, ...glass(), borderRadius: 20, padding: "14px 16px", marginBottom: 14, display: "flex", justifyContent: "space-between" }}>
           {[
             ["Accounts", portfolio.accounts, P.text],
             ["Trades", portfolio.trades, P.text],
             ["WR", portfolio.wr === null ? "—" : `${portfolio.wr}%`, P.win],
             ["Flags", portfolio.flags, portfolio.flags > 0 ? P.gold : P.faint],
-            ["Skipped", portfolio.skipped, P.slate === undefined ? P.dim : "#9BA3B8"],
+            ["Skipped", portfolio.skipped, "#9BA3B8"],
           ].map(([l, v, c]) => (
             <div key={l} style={{ textAlign: "center" }}>
               <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 16, color: c }}>{v}</div>
@@ -609,14 +683,29 @@ const App = () => {
           ))}
         </div>
 
+        {/* core rules quick strip */}
+        <div className="rise" style={{ "--i": 1, ...glass({ border: `1px solid rgba(104,116,232,0.2)` }), borderRadius: 20, padding: "15px 16px", marginBottom: 14 }}>
+          <div style={{ fontSize: 10, textTransform: "uppercase", color: P.faint, letterSpacing: "0.16em", marginBottom: 9 }}>The gate · every entry</div>
+          {["State first — feel off, no trade", "Pre-state ≥ 4 · A++ only", "Max 1/day · daily loss = platform off"].map((r, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: i < 2 ? 7 : 0 }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: GRAD_PRIMARY, flexShrink: 0, boxShadow: "0 0 6px rgba(104,116,232,0.6)" }} />
+              <span style={{ fontSize: 13, color: P.text, fontFamily: SANS }}>{r}</span>
+            </div>
+          ))}
+          <button onClick={() => { setHomeView("rules"); setOpenRule(null); }} className="jpress"
+            style={{ marginTop: 11, fontSize: 12, color: P.win, fontFamily: SANS, fontWeight: 600 }}>
+            All my rules →
+          </button>
+        </div>
+
         {saveError && (
-          <div style={{ ...glass({ border: "1px solid rgba(252,68,34,0.4)" }), marginTop: 12, borderRadius: 16, padding: "12px 16px", fontSize: 13, color: P.loss }}>
+          <div style={{ ...glass({ border: "1px solid rgba(252,68,34,0.4)" }), marginBottom: 12, borderRadius: 16, padding: "12px 16px", fontSize: 13, color: P.loss }}>
             Could not save — storage may be full or blocked. Export your data as backup.
           </div>
         )}
       </div>
 
-      <div style={{ padding: "16px 18px 0" }}>
+      <div style={{ padding: "0 18px 0" }}>
         {data.accounts.length === 0 && (
           <div className="rise" style={{ "--i": 2, ...glass(), borderRadius: 22, padding: "56px 20px", textAlign: "center", color: P.faint, fontSize: 14 }}>
             No accounts yet. Create your first one below.
@@ -713,6 +802,55 @@ const App = () => {
             v{APP_VERSION}
           </div>
         </div>
+      </div>
+    </React.Fragment>
+  );
+
+  const renderRules = () => (
+    <div style={{ padding: "16px 18px 0" }}>
+      {/* core principle */}
+      <div className="rise" style={{ "--i": 0, ...glass({ border: `1px solid rgba(104,116,232,0.25)`, boxShadow: "inset 0 0 50px rgba(104,116,232,0.05)" }), borderRadius: 22, padding: "18px 18px" }}>
+        <div style={{ fontSize: 10, textTransform: "uppercase", color: P.win, letterSpacing: "0.18em", marginBottom: 10, fontWeight: 700 }}>Core principle</div>
+        <div style={{ fontSize: 15, lineHeight: 1.5, color: P.text, fontFamily: SANS }}>{CORE_PRINCIPLE}</div>
+      </div>
+
+      {RULE_GROUPS.map((g, gi) => {
+        const tone = RULE_TONE[g.tag];
+        return (
+          <div key={g.tag} className="rise" style={{ "--i": gi + 1, marginTop: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 11, paddingLeft: 2 }}>
+              <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", color: tone === P.gold ? "#241F2C" : "#fff", background: tone, padding: "3px 9px", borderRadius: 7 }}>{g.tag}</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: P.text, fontFamily: SANS }}>{g.label}</span>
+              {g.sub && <span style={{ fontSize: 11, color: P.faint, fontFamily: SANS, marginLeft: "auto" }}>{g.sub}</span>}
+            </div>
+            <div style={{ ...glass(), borderRadius: 20, overflow: "hidden" }}>
+              {g.rules.map((r, ri) => {
+                const id = `${g.tag}-${ri}`;
+                const open = openRule === id;
+                return (
+                  <div key={id} style={{ borderTop: ri > 0 ? `1px solid ${P.border}` : "none",
+                    background: open ? `linear-gradient(90deg, ${tone}14 0%, transparent 70%)` : "transparent" }}>
+                    <div onClick={() => setOpenRule(open ? null : id)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 15px", cursor: "pointer" }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: tone, flexShrink: 0, boxShadow: `0 0 7px ${tone}77` }} />
+                      <span style={{ flex: 1, fontSize: 14.5, fontWeight: open ? 700 : 600, color: P.text, fontFamily: SANS }}>{r.t}</span>
+                      <span style={{ color: P.faint, fontSize: 13, transform: open ? "rotate(90deg)" : "none", transition: "transform 200ms" }}>›</span>
+                    </div>
+                    {open && (
+                      <div className="fade-anim" style={{ padding: "0 15px 14px 34px", fontSize: 13.5, lineHeight: 1.5, color: P.dim, fontFamily: SANS }}>
+                        {r.d}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{ textAlign: "center", fontSize: 11, color: P.faint, fontFamily: MONO, margin: "20px 0 8px" }}>
+        Process over outcome · the skip is a win
       </div>
     </div>
   );
